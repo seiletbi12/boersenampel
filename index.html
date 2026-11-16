@@ -112,7 +112,7 @@
                 <div class="mt-1 flex justify-between text-[10px] text-slate-500">
                     <span>0 Extreme Fear</span><span>50 Neutral</span><span>100 Extreme Greed</span>
                 </div>
-                <p class="mt-2 text-xs text-slate-400">Deine Zonen: gelb unter <span id="fgFearDisplay">26</span> (Fear) oder über <span id="fgGreedDisplay">76</span> (Greed).<br>Quelle: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a></p>
+                <p class="mt-2 text-xs text-slate-400">Deine Zonen: gelb unter <span id="fgFearDisplay">26</span> (Fear) oder über <span id="fgGreedDisplay">76</span> (Greed).<br>Quelle: <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" class="text-sky-400 hover:underline">CNN Fear & Greed Index</a></p>
             </div>
 
             <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
@@ -212,7 +212,7 @@
         </div>
 
         <p class="pb-4 text-center text-xs text-slate-500">
-            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a>, <a href="https://www.alphavantage.co/" target="_blank" class="text-sky-400 hover:underline">Alpha Vantage</a> (SPY, VXX) · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
+            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" class="text-sky-400 hover:underline">CNN Fear & Greed</a>, <a href="https://www.alphavantage.co/" target="_blank" class="text-sky-400 hover:underline">Alpha Vantage</a> (SPY, VXX) · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
         </p>
     </div>
 
@@ -311,24 +311,49 @@
 
         async function loadFearGreed() {
             try {
-                const url = `https://api.alternative.me/fng/?format=json&t=${Date.now()}`;
+                // CNN Fear & Greed API
+                const url = `https://production.dataviz.cnn.io/index/fearandgreed/graphdata?cache=${Date.now()}`;
                 const response = await fetch(url, { cache: 'no-store' });
-                if (!response.ok) throw new Error('API nicht erreichbar');
+                if (!response.ok) throw new Error('CNN API nicht erreichbar');
                 const json = await response.json();
-                if (json.data && json.data[0]) {
-                    const fgData = json.data[0];
-                    const value = parseInt(fgData.value);
-                    const timestamp = fgData.timestamp * 1000;
-                    let zone = "";
-                    if (value <= 25) zone = "Extreme Fear";
-                    else if (value <= 45) zone = "Fear";
-                    else if (value <= 55) zone = "Neutral";
-                    else if (value <= 75) zone = "Greed";
-                    else zone = "Extreme Greed";
-                    return { value: value, zone: zone, prev: value, date: new Date(timestamp) };
+                
+                if (json && json.fear_and_greed) {
+                    const value = parseInt(json.fear_and_greed.score);
+                    let zone = json.fear_and_greed.rating || "";
+                    
+                    // Normalisiere die Zone (CNN verwendet leicht andere Bezeichnungen)
+                    if (zone === "Extreme Fear") zone = "Extreme Fear";
+                    else if (zone === "Fear") zone = "Fear";
+                    else if (zone === "Neutral") zone = "Neutral";
+                    else if (zone === "Greed") zone = "Greed";
+                    else if (zone === "Extreme Greed") zone = "Extreme Greed";
+                    
+                    return { value: value, zone: zone, prev: value, date: new Date() };
                 }
             } catch (error) {
-                console.error('Fear & Greed Fehler:', error);
+                console.error('Fear & Greed (CNN) Fehler:', error);
+                // Fallback zu alternative.me
+                try {
+                    const fallbackUrl = `https://api.alternative.me/fng/?format=json&t=${Date.now()}`;
+                    const fallbackResponse = await fetch(fallbackUrl, { cache: 'no-store' });
+                    if (fallbackResponse.ok) {
+                        const fallbackJson = await fallbackResponse.json();
+                        if (fallbackJson.data && fallbackJson.data[0]) {
+                            const fgData = fallbackJson.data[0];
+                            const value = parseInt(fgData.value);
+                            const timestamp = fgData.timestamp * 1000;
+                            let zone = "";
+                            if (value <= 25) zone = "Extreme Fear";
+                            else if (value <= 45) zone = "Fear";
+                            else if (value <= 55) zone = "Neutral";
+                            else if (value <= 75) zone = "Greed";
+                            else zone = "Extreme Greed";
+                            return { value: value, zone: zone, prev: value, date: new Date(timestamp) };
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.error('Fallback Fear & Greed Fehler:', fallbackError);
+                }
             }
             return { value: 24, zone: "Extreme Fear", prev: 24, date: new Date() };
         }
