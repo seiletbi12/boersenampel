@@ -69,7 +69,7 @@
         <div class="grid gap-4 md:grid-cols-2">
             <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
                 <div class="mb-3 flex items-baseline justify-between">
-                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">S&P 500</h3>
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">S&P 500 (SPY ETF)</h3>
                     <span class="text-xs text-slate-500" id="spxDate">-</span>
                 </div>
                 <div class="flex items-baseline gap-3">
@@ -79,14 +79,14 @@
                 <p class="mt-1 text-xs text-slate-400" id="spxNote">Laedt Daten...</p>
                 <div class="mt-3 h-28"><canvas id="spxChart"></canvas></div>
                 <p class="mt-1 text-[10px] text-slate-500">
-                    <span class="text-yellow-400">– –</span> MA50 <span id="ma50Value">7.693</span> ·
-                    <span class="text-green-400">– –</span> MA200 <span id="ma200Value">7.320</span>
+                    <span class="text-yellow-400">– –</span> MA50 <span id="ma50Value">769,30</span> ·
+                    <span class="text-green-400">– –</span> MA200 <span id="ma200Value">732,04</span>
                 </p>
             </div>
 
             <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
                 <div class="mb-3 flex items-baseline justify-between">
-                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">VIX</h3>
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">VIX (VXX ETF)</h3>
                     <span class="text-xs text-slate-500" id="vixDate">-</span>
                 </div>
                 <div class="flex items-baseline gap-3">
@@ -220,7 +220,7 @@
         const DEFAULT_THRESHOLDS = { vixCaution: 20, vixStop: 25, fgFear: 26, fgGreed: 76 };
         const ALPHA_VANTAGE_KEY = '8YJQGE39KQKH7KBU';
         const data = {
-            spx: { value: null, change: null, changePercent: null, date: null, ma50: 7692.97, ma200: 7320.35, series: [] },
+            spx: { value: null, change: null, changePercent: null, date: null, ma50: 769.297, ma200: 732.035, series: [] },
             vix: { value: null, change: null, changePercent: null, date: null, series: [] },
             fg: { value: null, zone: "-", prev: null, date: null },
             pcr: { value: 1.05, prev: 0.63, date: "05.11.2026", note: "Höchster Stand seit April 2025" },
@@ -311,7 +311,7 @@
         }
 
         async function loadSPX() {
-            const symbol = '^GSPC';
+            const symbol = 'SPY';
             try {
                 const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
                 const response = await fetch(url, { cache: 'no-store' });
@@ -330,14 +330,14 @@
                     }
                 }
             } catch (e) {
-                console.error('Alpha Vantage SPX Fehler:', e);
+                console.error('Alpha Vantage SPY Fehler:', e);
             }
-            showInfoBox('ℹ️ S&P 500: Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
-            return { value: 7353.73, change: -4.36, changePercent: -0.06, date: new Date() };
+            showInfoBox('ℹ️ S&P 500 (SPY): Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
+            return { value: 735.37, change: -0.44, changePercent: -0.06, date: new Date() };
         }
 
         async function loadVIX() {
-            const symbol = '^VIX';
+            const symbol = 'VXX';
             try {
                 const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
                 const response = await fetch(url, { cache: 'no-store' });
@@ -356,9 +356,9 @@
                     }
                 }
             } catch (e) {
-                console.error('Alpha Vantage VIX Fehler:', e);
+                console.error('Alpha Vantage VXX Fehler:', e);
             }
-            showInfoBox('ℹ️ VIX: Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
+            showInfoBox('ℹ️ VIX (VXX): Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
             return { value: 26.36, change: -1.82, changePercent: -6.46, date: new Date() };
         }
 
