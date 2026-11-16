@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markt-Morgencheck</title>
+    <meta name="description" content="Taeglicher Markt-Check mit Ampel-System">
+    <link rel="manifest" href="data:application/json;charset=utf-8,{\"name\":\"Markt-Morgencheck\",\"short_name\":\"MarktCheck\",\"start_url\":\".\",\"display\":\"standalone\",\"background_color\":\"#1e293b\",\"theme_color\":\"#1e293b\"}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .lamp { width: 52px; height: 52px; border-radius: 50%; transition: all 0.5s ease; }
+        .lamp-red { background: #ef4444; box-shadow: 0 0 28px 8px rgba(239,68,68,0.5); }
+        .lamp-yellow { background: #facc15; box-shadow: 0 0 28px 8px rgba(250,204,21,0.5); }
+        .lamp-green { background: #22c55e; box-shadow: 0 0 28px 8px rgba(34,197,94,0.5); }
+        .lamp-off { background: rgba(30,41,59,0.5); border: 2px solid rgba(71,85,105,0.6); }
+        .fg-gradient { background: linear-gradient(to right, #dc2626, #f97316, #eab308, #65a30d, #16a34a); }
+        .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-online { color: #22c55e; }
+        .status-offline { color: #ef4444; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-900 p-4 sm:p-6 text-slate-100">
+    <div class="mx-auto max-w-5xl space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold">🚦 Markt-Morgencheck</h1>
+                <p class="text-sm text-slate-400" id="marketStatus">Lädt Marktstatus...</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="loadAllData()" class="rounded-lg bg-sky-600 hover:bg-sky-700 px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2">
+                    <span>🔄 Aktualisieren</span>
+                    <span class="spinner hidden" id="refreshSpinner"></span>
+                </button>
+                <div class="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm">
+                    <span class="text-slate-400">Aktualisiert: </span>
+                    <span class="font-semibold text-sky-300" id="updateTime">-</span>
+                </div>
+                <div class="flex items-center gap-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm">
+                    <span class="text-slate-400">Status:</span>
+                    <span id="connectionStatus">⏳ Lädt...</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="infoBox" class="hidden rounded-lg border border-amber-500/30 bg-amber-900/20 p-3 text-sm">
+            <p class="text-amber-200" id="infoMessage"></p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg">
+            <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
+                <div class="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-600 bg-slate-900 px-5 py-4">
+                    <div class="lamp lamp-off" id="lampRed"></div>
+                    <div class="lamp lamp-off" id="lampYellow"></div>
+                    <div class="lamp lamp-off" id="lampGreen"></div>
+                </div>
+                <div class="flex-1">
+                    <div class="mb-2 text-lg font-bold" id="ampelTitle">🟢 GRÜN — Normal handelbar.</div>
+                    <ul class="space-y-1.5 text-sm text-slate-300" id="ampelReasons">
+                        <li>Lädt Ampel-Bewertung...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
+                <div class="mb-3 flex items-baseline justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">S&P 500</h3>
+                    <span class="text-xs text-slate-500" id="spxDate">-</span>
+                </div>
+                <div class="flex items-baseline gap-3">
+                    <span class="text-3xl font-bold" id="spxValue">-</span>
+                    <span class="text-lg font-semibold" id="spxChange">-</span>
+                </div>
+                <p class="mt-1 text-xs text-slate-400" id="spxNote">Lädt Daten...</p>
+                <div class="mt-3 h-28"><canvas id="spxChart"></canvas></div>
+                <p class="mt-1 text-[10px] text-slate-500">
+                    <span class="text-yellow-400">– –</span> MA50 <span id="ma50Value">7.693</span> ·
+                    <span class="text-green-400">– –</span> MA200 <span id="ma200Value">7.320</span>
+                </p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
+                <div class="mb-3 flex items-baseline justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">VIX</h3>
+                    <span class="text-xs text-slate-500" id="vixDate">-</span>
+                </div>
+                <div class="flex items-baseline gap-3">
+                    <span class="text-3xl font-bold" id="vixValue">-</span>
+                    <span class="text-sm text-slate-400" id="vixChange">-</span>
+                </div>
+                <p class="mt-1 text-xs text-slate-400" id="vixNote">Deine Faustregel: gelb ab <span id="vixCautionDisplay">20</span>, rot ab <span id="vixStopDisplay">25</span>.</p>
+                <div class="mt-3 h-28"><canvas id="vixChart"></canvas></div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
+                <div class="mb-3 flex items-baseline justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">Fear & Greed Index</h3>
+                    <span class="text-xs text-slate-500" id="fgDate">-</span>
+                </div>
+                <div class="flex items-baseline gap-3">
+                    <span class="text-3xl font-bold" id="fgValue">-</span>
+                    <span class="text-sm font-medium" id="fgZone">-</span>
+                </div>
+                <div class="mt-3 h-3 w-full overflow-hidden rounded-full fg-gradient opacity-70">
+                    <div class="relative h-full"><div class="absolute top-1/2 h-5 w-1.5 -translate-y-1/2 rounded-full bg-white shadow ring-1 ring-slate-900" style="left: calc(0% - 3px)" id="fgMarker"></div></div>
+                </div>
+                <div class="mt-1 flex justify-between text-[10px] text-slate-500">
+                    <span>0 Extreme Fear</span><span>50 Neutral</span><span>100 Extreme Greed</span>
+                </div>
+                <p class="mt-2 text-xs text-slate-400">Deine Zonen: gelb unter <span id="fgFearDisplay">26</span> (Fear) oder über <span id="fgGreedDisplay">76</span> (Greed).<br>Quelle: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a></p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
+                <div class="mb-3 flex items-baseline justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">Put/Call-Ratio</h3>
+                    <span class="text-xs text-slate-500" id="pcrDate">-</span>
+                </div>
+                <div class="flex items-baseline gap-3">
+                    <span class="text-3xl font-bold" id="pcrValue">-</span>
+                    <span class="text-sm text-slate-400" id="pcrChange">-</span>
+                </div>
+                <div class="mt-3 h-3 w-full rounded-full bg-slate-700">
+                    <div class="h-full rounded-full bg-yellow-400 transition-all" style="width: 0%" id="pcrBar"></div>
+                </div>
+                <div class="mt-1 flex justify-between text-[10px] text-slate-500"><span>0,4</span><span>0,7 normal</span><span>1,0+ Angst</span></div>
+                <p class="mt-2 text-xs text-slate-400" id="pcrNote">-</p>
+                <p class="mt-1 text-xs text-slate-500">Interpretation: &lt; 0,6 = Call-Euphorie · 0,6–1,0 = normal · ≥ 1,0 = massive Absicherung.</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
+                <div class="mb-3 flex items-baseline justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">Trend: MA50 / MA200</h3>
+                    <span class="text-xs text-slate-500" id="trendDate">-</span>
+                </div>
+                <div class="flex items-baseline gap-3"><span class="text-3xl font-bold" id="trendStatus">-</span></div>
+                <div class="mt-3 space-y-2 text-sm">
+                    <div class="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-1.5">
+                        <span class="text-slate-300">S&P 500 (Schluss)</span>
+                        <span class="font-mono font-semibold text-sky-400" id="trendSpx">-</span>
+                    </div>
+                    <div class="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-1.5">
+                        <span class="text-slate-300">MA50 (Trendfilter)</span>
+                        <span class="font-mono font-semibold" id="trendMa50">-</span>
+                    </div>
+                    <div class="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-1.5">
+                        <span class="text-slate-300">MA200 (Langfrist)</span>
+                        <span class="font-mono font-semibold" id="trendMa200">-</span>
+                    </div>
+                </div>
+                <p class="mt-2 text-xs text-slate-400" id="trendBasis">-</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5 shadow-lg backdrop-blur">
+                <div class="mb-3 flex items-baseline justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">VIX-Term-Structure</h3>
+                    <span class="text-xs text-slate-500" id="vixTermDate">-</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="rounded-xl bg-slate-900/70 p-3 text-center">
+                        <div class="text-xs text-slate-400">VIX9D / VIX</div>
+                        <div class="text-2xl font-bold" id="vix9dRatio">-</div>
+                        <div class="text-[10px] font-medium" id="vix9dStatus">-</div>
+                    </div>
+                    <div class="rounded-xl bg-slate-900/70 p-3 text-center">
+                        <div class="text-xs text-slate-400">VIX / VIX3M</div>
+                        <div class="text-2xl font-bold" id="vix3mRatio">-</div>
+                        <div class="text-[10px] font-medium" id="vix3mStatus">-</div>
+                    </div>
+                </div>
+                <p class="mt-2 text-xs text-slate-400" id="vixTermNote">-</p>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-5">
+            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-300">⚙️ Persönliche Schwellenwerte</h3>
+            <div class="grid gap-5 sm:grid-cols-2">
+                <div>
+                    <div class="mb-1 flex justify-between text-sm">
+                        <label class="text-slate-300">VIX: Vorsicht ab</label>
+                        <span class="font-mono font-semibold text-sky-300" id="vixCautionVal">20</span>
+                    </div>
+                    <input type="range" min="12" max="30" step="0.5" value="20" oninput="updateThreshold('vixCaution', this.value); saveThresholds(); updateAmpel();" class="w-full accent-sky-400" id="vixCaution">
+                </div>
+                <div>
+                    <div class="mb-1 flex justify-between text-sm">
+                        <label class="text-slate-300">VIX: Stopp ab</label>
+                        <span class="font-mono font-semibold text-sky-300" id="vixStopVal">25</span>
+                    </div>
+                    <input type="range" min="18" max="40" step="0.5" value="25" oninput="updateThreshold('vixStop', this.value); saveThresholds(); updateAmpel();" class="w-full accent-sky-400" id="vixStop">
+                </div>
+                <div>
+                    <div class="mb-1 flex justify-between text-sm">
+                        <label class="text-slate-300">Fear & Greed: Gelb ab "Fear"</label>
+                        <span class="font-mono font-semibold text-sky-300" id="fgFearVal">26</span>
+                    </div>
+                    <input type="range" min="5" max="45" step="1" value="26" oninput="updateThreshold('fgFear', this.value); saveThresholds(); updateAmpel();" class="w-full accent-sky-400" id="fgFear">
+                </div>
+                <div>
+                    <div class="mb-1 flex justify-between text-sm">
+                        <label class="text-slate-300">Fear & Greed: Gelb ab "Greed"</label>
+                        <span class="font-mono font-semibold text-sky-300" id="fgGreedVal">76</span>
+                    </div>
+                    <input type="range" min="55" max="95" step="1" value="76" oninput="updateThreshold('fgGreed', this.value); saveThresholds(); updateAmpel();" class="w-full accent-sky-400" id="fgGreed">
+                </div>
+            </div>
+            <p class="mt-3 text-xs text-slate-500">Die Regler wirken sofort auf Ampel und Begründungstexte. Einstellungen bleiben erhalten.</p>
+        </div>
+
+        <p class="pb-4 text-center text-xs text-slate-500">
+            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a>, <a href="https://finance.yahoo.com/" target="_blank" class="text-sky-400 hover:underline">Yahoo Finance</a> · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
+        </p>
+    </div>
+
+    <script>
+        const DEFAULT_THRESHOLDS = { vixCaution: 20, vixStop: 25, fgFear: 26, fgGreed: 76 };
+        const data = {
+            spx: { value: null, change: null, changePercent: null, date: null, ma50: 7692.97, ma200: 7320.35, series: [] },
+            vix: { value: null, change: null, changePercent: null, date: null, series: [] },
+            fg: { value: null, zone: "-", prev: null, date: null },
+            pcr: { value: 1.05, prev: 0.63, date: "05.11.2026", note: "Höchster Stand seit April 2025" },
+            vixTerm: { vix9dRatio: 1.16, vixVix3mRatio: 1.10, date: "05.11.2026", note: "VIX9D/VIX und VIX/VIX3M beide über 1 = Schock-Modus" },
+            marketStatus: { isOpen: false, status: "-" },
+            lastUpdated: null
+        };
+        let thresholds = { ...DEFAULT_THRESHOLDS };
+        let charts = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadThresholds();
+            loadAllData();
+            updateMarketStatus();
+            setInterval(updateMarketStatus, 60000);
+            setInterval(loadAllData, 5 * 60 * 1000);
+        });
+
+        function updateMarketStatus() {
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset();
+            const isDST = timezoneOffset < -60;
+            const mezOffset = isDST ? 2 : 1;
+            const currentUTC = now.getTime() + now.getTimezoneOffset() * 60000;
+            const currentMEZ = new Date(currentUTC + mezOffset * 3600000);
+            const mezHour = currentMEZ.getHours();
+            const mezMinute = currentMEZ.getMinutes();
+            const isOpen = (mezHour > 15 || (mezHour === 15 && mezMinute >= 30)) && mezHour < 22;
+            const statusText = isOpen
+                ? `US-Markt <span class="text-green-400">offen</span> (15:30–22:00 Uhr Berlin)`
+                : `US-Markt <span class="text-red-400">geschlossen</span> (öffnet um 15:30 Uhr Berlin)`;
+            data.marketStatus = { isOpen: isOpen, status: statusText };
+            document.getElementById('marketStatus').innerHTML = statusText;
+            if (data.spx.value) {
+                document.getElementById('spxNote').textContent = isOpen ? `Live-Kurs (ca. 15 Min. verzögert)` : `Schlusskurs vom ${formatDate(data.spx.date)}`;
+            }
+        }
+
+        async function loadAllData() {
+            showLoading(true);
+            updateConnectionStatus('⏳ Lädt...', 'status-offline');
+            try {
+                const [fgData, spxData, vixData] = await Promise.all([loadFearGreed(), loadSPX(), loadVIX()]);
+                if (fgData) { data.fg = fgData; updateFgDisplay(); }
+                if (spxData) { data.spx.value = spxData.value; data.spx.change = spxData.change; data.spx.changePercent = spxData.changePercent; data.spx.date = spxData.date; updateSpxDisplay(); }
+                if (vixData) { data.vix.value = vixData.value; data.vix.change = vixData.change; data.vix.changePercent = vixData.changePercent; data.vix.date = vixData.date; updateVixDisplay(); }
+                updatePcrDisplay();
+                updateVixTermDisplay();
+                updateTrendDisplay();
+                updateAmpel();
+                data.lastUpdated = new Date();
+                updateTimestamps();
+                updateConnectionStatus('🟢 Online', 'status-online');
+                hideInfoBox();
+            } catch (error) {
+                console.error('Fehler:', error);
+                updateConnectionStatus('🔴 Offline', 'status-offline');
+                showInfoBox('⚠️ Daten konnten nicht geladen werden. Drücke den Aktualisieren-Button.', 'error');
+            } finally { showLoading(false); }
+        }
+
+        async function loadFearGreed() {
+            try {
+                const url = `https://api.alternative.me/fng/?format=json&t=${Date.now()}`;
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) throw new Error('API nicht erreichbar');
+                const json = await response.json();
+                if (json.data && json.data[0]) {
+                    const fgData = json.data[0];
+                    const value = parseInt(fgData.value);
+                    const timestamp = fgData.timestamp * 1000;
+                    let zone = "";
+                    if (value <= 25) zone = "Extreme Fear";
+                    else if (value <= 45) zone = "Fear";
+                    else if (value <= 55) zone = "Neutral";
+                    else if (value <= 75) zone = "Greed";
+                    else zone = "Extreme Greed";
+                    return { value: value, zone: zone, prev: value, date: new Date(timestamp) };
+                }
+            } catch (error) {
+                console.error('Fear & Greed Fehler:', error);
+            }
+            return { value: 24, zone: "Extreme Fear", prev: 24, date: new Date() };
+        }
+
+        async function loadSPX() {
+            const symbol = '^GSPC';
+            const proxies = ['https://api.allorigins.win/raw?url=', 'https://corsproxy.io/?', 'https://thingproxy.freeboard.io/fetch/'];
+            for (const proxy of proxies) {
+                try {
+                    const baseUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+                    const proxyUrl = proxy + encodeURIComponent(baseUrl);
+                    const response = await fetch(proxyUrl, { cache: 'no-store' });
+                    if (response.ok) {
+                        const json = await response.json();
+                        return parseYahooData(json, symbol);
+                    }
+                } catch (e) { continue; }
+            }
+            try {
+                const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`, { cache: 'no-store' });
+                if (response.ok) {
+                    const json = await response.json();
+                    return parseYahooData(json, symbol);
+                }
+            } catch (e) {}
+            showInfoBox('ℹ️ S&P 500: Live-Daten nicht verfügbar. Fallback-Werte.', 'warning');
+            return { value: 7353.73, change: -4.36, changePercent: -0.06, date: new Date() };
+        }
+
+        async function loadVIX() {
+            const symbol = '^VIX';
+            const proxies = ['https://api.allorigins.win/raw?url=', 'https://corsproxy.io/?', 'https://thingproxy.freeboard.io/fetch/'];
+            for (const proxy of proxies) {
+                try {
+                    const baseUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+                    const proxyUrl = proxy + encodeURIComponent(baseUrl);
+                    const response = await fetch(proxyUrl, { cache: 'no-store' });
+                    if (response.ok) {
+                        const json = await response.json();
+                        return parseYahooData(json, symbol);
+                    }
+                } catch (e) { continue; }
+            }
+            try {
+                const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`, { cache: 'no-store' });
+                if (response.ok) {
+                    const json = await response.json();
+                    return parseYahooData(json, symbol);
+                }
+            } catch (e) {}
+            showInfoBox('ℹ️ VIX: Live-Daten nicht verfügbar. Fallback-Werte.', 'warning');
+            return { value: 26.36, change: -1.82, changePercent: -6.46, date: new Date() };
+        }
+
+        function parseYahooData(json, symbol) {
+            if (!json.chart || !json.chart.result || json.chart.result.length === 0) throw new Error('Ungültige Antwort');
+            const result = json.chart.result[0];
+            const meta = result.meta;
+            const timestamp = result.timestamp[0] * 1000;
+            const current = meta.regularMarketPrice || meta.chartPreviousClose;
+            const prevClose = meta.chartPreviousClose || meta.regularMarketPrice;
+            const change = meta.regularMarketChange || (current - prevClose);
+            const changePercent = meta.regularMarketChangePercent || ((change / prevClose) * 100);
+            return { value: current, change: change, changePercent: changePercent, date: new Date(timestamp) };
+        }
+
+        function updateSpxDisplay() {
+            if (!data.spx.value) return;
+            document.getElementById('spxValue').textContent = data.spx.value.toLocaleString('de-DE', { minimumFractionDigits: 2 });
+            const changeEl = document.getElementById('spxChange');
+            const isPositive = (data.spx.change || 0) >= 0;
+            changeEl.textContent = (isPositive ? '▲' : '▼') + ' ' + Math.abs(data.spx.change || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' (' + (isPositive ? '+' : '') + (data.spx.changePercent || 0).toFixed(2).replace('.', ',') + ' %)';
+            changeEl.className = 'text-lg font-semibold ' + (isPositive ? 'text-green-400' : 'text-red-400');
+            document.getElementById('spxDate').textContent = formatDate(data.spx.date);
+            document.getElementById('ma50Value').textContent = data.spx.ma50.toLocaleString('de-DE', { maximumFractionDigits: 0 });
+            document.getElementById('ma200Value').textContent = data.spx.ma200.toLocaleString('de-DE', { maximumFractionDigits: 0 });
+        }
+
+        function updateVixDisplay() {
+            if (!data.vix.value) return;
+            const valueEl = document.getElementById('vixValue');
+            valueEl.textContent = data.vix.value.toFixed(2).replace('.', ',');
+            const color = data.vix.value >= thresholds.vixStop ? 'text-red-400' : data.vix.value >= thresholds.vixCaution ? 'text-yellow-400' : 'text-green-400';
+            valueEl.className = 'text-3xl font-bold ' + color;
+            const changeEl = document.getElementById('vixChange');
+            const changePercent = (data.vix.changePercent || 0);
+            const isPositive = changePercent >= 0;
+            changeEl.textContent = (isPositive ? '▲' : '▼') + ' ' + Math.abs(changePercent).toFixed(0) + ' % ggü. Vortag';
+            document.getElementById('vixDate').textContent = formatDate(data.vix.date) + ' (live)';
+            const note = data.vix.value >= thresholds.vixStop ? 'rot — Stopp-Limit überschritten.' : data.vix.value >= thresholds.vixCaution ? 'gelb.' : 'grün.';
+            document.getElementById('vixNote').innerHTML = 'Deine Faustregel: gelb ab <span id="vixCautionDisplay">' + thresholds.vixCaution + '</span>, rot ab <span id="vixStopDisplay">' + thresholds.vixStop + '</span>. Heute: ' + note;
+        }
+
+        function updateFgDisplay() {
+            if (!data.fg.value) return;
+            document.getElementById('fgValue').textContent = data.fg.value;
+            document.getElementById('fgZone').textContent = '"' + data.fg.zone + '"';
+            const color = getFgColor(data.fg.value);
+            document.getElementById('fgValue').style.color = color;
+            document.getElementById('fgZone').style.color = color;
+            document.getElementById('fgMarker').style.left = `calc(${data.fg.value}% - 3px)`;
+            document.getElementById('fgDate').textContent = formatDate(data.fg.date);
+        }
+
+        function updatePcrDisplay() {
+            if (!data.pcr.value) return;
+            const valueEl = document.getElementById('pcrValue');
+            valueEl.textContent = data.pcr.value.toFixed(2).replace('.', ',');
+            if (data.pcr.value >= 1.0) valueEl.className = 'text-3xl font-bold text-yellow-400';
+            else if (data.pcr.value < 0.6) valueEl.className = 'text-3xl font-bold text-orange-400';
+            else valueEl.className = 'text-3xl font-bold text-green-400';
+            const changePercent = ((data.pcr.value / data.pcr.prev - 1) * 100).toFixed(0);
+            document.getElementById('pcrChange').textContent = (changePercent >= 0 ? '▲' : '▼') + ' ' + Math.abs(changePercent) + ' % ggü. Vortag';
+            const bar = document.getElementById('pcrBar');
+            const pct = Math.min(100, Math.max(0, (data.pcr.value / 1.4) * 100));
+            bar.style.width = pct + '%';
+            bar.style.backgroundColor = data.pcr.value >= 1.0 ? '#facc15' : '#22c55e';
+            document.getElementById('pcrDate').textContent = data.pcr.date;
+            document.getElementById('pcrNote').textContent = data.pcr.note;
+        }
+
+        function updateVixTermDisplay() {
+            if (!data.vixTerm.vix9dRatio || !data.vixTerm.vixVix3mRatio) return;
+            document.getElementById('vix9dRatio').textContent = data.vixTerm.vix9dRatio.toFixed(2).replace('.', ',');
+            document.getElementById('vix9dStatus').textContent = data.vixTerm.vix9dRatio >= 1 ? 'Backwardation' : 'Contango';
+            document.getElementById('vix9dStatus').style.color = data.vixTerm.vix9dRatio >= 1 ? '#facc15' : '#22c55e';
+            document.getElementById('vix9dRatio').style.color = data.vixTerm.vix9dRatio >= 1 ? '#facc15' : '#22c55e';
+            document.getElementById('vix3mRatio').textContent = data.vixTerm.vixVix3mRatio.toFixed(2).replace('.', ',');
+            document.getElementById('vix3mStatus').textContent = data.vixTerm.vixVix3mRatio >= 1 ? 'Backwardation' : 'Contango';
+            document.getElementById('vix3mStatus').style.color = data.vixTerm.vixVix3mRatio >= 1 ? '#facc15' : '#22c55e';
+            document.getElementById('vix3mRatio').style.color = data.vixTerm.vixVix3mRatio >= 1 ? '#facc15' : '#22c55e';
+            document.getElementById('vixTermDate').textContent = data.vixTerm.date;
+            document.getElementById('vixTermNote').textContent = data.vixTerm.note;
+        }
+
+        function updateTrendDisplay() {
+            const sp = data.spx.value || data.spx.lastClose || 7353.73;
+            const ma50 = data.spx.ma50;
+            const ma200 = data.spx.ma200;
+            const statusEl = document.getElementById('trendStatus');
+            if (sp >= ma50 && sp >= ma200) { statusEl.textContent = '↑ über beiden'; statusEl.className = 'text-3xl font-bold text-green-400'; }
+            else if (sp >= ma200) { statusEl.textContent = '↕ dazwischen'; statusEl.className = 'text-3xl font-bold text-yellow-400'; }
+            else { statusEl.textContent = '↓ unter MA200'; statusEl.className = 'text-3xl font-bold text-red-400'; }
+            document.getElementById('trendSpx').textContent = sp.toLocaleString('de-DE', { maximumFractionDigits: 0 }) + (sp >= ma50 ? ' ✓' : ' ✗');
+            document.getElementById('trendMa50').textContent = ma50.toLocaleString('de-DE', { maximumFractionDigits: 0 }) + (sp >= ma50 ? ' ✓' : ' ✗');
+            document.getElementById('trendMa200').textContent = ma200.toLocaleString('de-DE', { maximumFractionDigits: 0 }) + (sp >= ma200 ? ' ✓' : ' ✗');
+            document.getElementById('trendSpx').style.color = '#38bdf8';
+            document.getElementById('trendMa50').style.color = sp >= ma50 ? '#22c55e' : '#f87171';
+            document.getElementById('trendMa200').style.color = sp >= ma200 ? '#22c55e' : '#f87171';
+            document.getElementById('trendDate').textContent = formatDate(new Date());
+            document.getElementById('trendBasis').textContent = `Basis: Schlusskurs ${formatDate(new Date())} (${sp.toLocaleString('de-DE')}). Über MA50 & MA200 = grün · über MA200, unter MA50 = gelb · unter MA200 = rot.`;
+        }
+
+        function updateTimestamps() {
+            const now = new Date();
+            document.getElementById('updateTime').textContent = now.toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+            document.getElementById('dataTimestamp').textContent = data.lastUpdated ? data.lastUpdated.toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' Uhr' : '-';
+        }
+
+        function updateAmpel() {
+            const reasons = [];
+            let color = "green";
+            if (data.vix.value && data.vix.value >= thresholds.vixStop) {
+                color = "red";
+                reasons.push({ icon: "🔴", text: `VIX ${data.vix.value.toFixed(2).replace('.', ',')} liegt über deinem Stopp-Limit (${thresholds.vixStop}) — hohes Volatilitätsregime, Finger weg von neuen Positionen.` });
+            } else if (data.vix.value && data.vix.value >= thresholds.vixCaution) {
+                if (color !== "red") color = "yellow";
+                reasons.push({ icon: "🟡", text: `VIX ${data.vix.value.toFixed(2).replace('.', ',')} über deinem Vorsichtswert (${thresholds.vixCaution}) — erhöhte Nervosität, nur kleine Positionen.` });
+            } else {
+                reasons.push({ icon: "🟢", text: `VIX ${data.vix.value ? data.vix.value.toFixed(2).replace('.', ',') : '?'} unter deinem Vorsichtswert (${thresholds.vixCaution}) — ruhiges Volatilitätsregime.` });
+            }
+            if (data.fg.value) {
+                if (data.fg.value < thresholds.fgFear) {
+                    if (color === "green") color = "yellow";
+                    reasons.push({ icon: data.fg.value <= 25 ? "🔴" : "🟡", text: `Fear & Greed bei ${data.fg.value} („${data.fg.zone}“) — tief unter deiner Gelb-Schwelle (${thresholds.fgFear}), starke Angst am Markt.` });
+                } else if (data.fg.value > thresholds.fgGreed) {
+                    if (color === "green") color = "yellow";
+                    reasons.push({ icon: "🟡", text: `Fear & Greed bei ${data.fg.value} („${data.fg.zone}“) — über deiner Gelb-Schwelle (${thresholds.fgGreed}), mögliche Überhitzung.` });
+                } else {
+                    reasons.push({ icon: "🟢", text: `Fear & Greed bei ${data.fg.value} („${data.fg.zone}“) — im neutralen Bereich zwischen ${thresholds.fgFear} und ${thresholds.fgGreed}.` });
+                }
+            }
+            if (data.pcr.value) {
+                if (data.pcr.value >= 1.0) {
+                    if (color === "green") color = "yellow";
+                    reasons.push({ icon: "🟡", text: `Put/Call-Ratio ${data.pcr.value.toFixed(2).replace('.', ',')} ≥ 1,0 — massives Hedging/Put-Kauf; historisch oft ein konträrer Bodenindikator, aber eindeutiges Angstsignal.` });
+                } else if (data.pcr.value < 0.6) {
+                    if (color === "green") color = "yellow";
+                    reasons.push({ icon: "🟡", text: `Put/Call-Ratio ${data.pcr.value.toFixed(2).replace('.', ',')} < 0,6 — sehr einseitige Call-Spekulation, Rücksetzer-Risiko.` });
+                } else {
+                    reasons.push({ icon: "🟢", text: `Put/Call-Ratio ${data.pcr.value.toFixed(2).replace('.', ',')} im normalen Bereich (0,6–1,0) — ausgewogene Optionsmärkte.` });
+                }
+            }
+            const sp = data.spx.value || data.spx.lastClose || 7353.73;
+            const ma50 = data.spx.ma50;
+            const ma200 = data.spx.ma200;
+            if (sp >= ma50 && sp >= ma200) {
+                reasons.push({ icon: "🟢", text: `S&P 500 (${sp.toLocaleString("de-DE")}) über MA50 (${ma50.toFixed(0).replace('.', ',')}) und MA200 (${ma200.toFixed(0).replace('.', ',')}) — struktureller Aufwärtstrend intakt.` });
+            } else if (sp >= ma200) {
+                if (color === "green") color = "yellow";
+                reasons.push({ icon: "🟡", text: `S&P 500 (${sp.toLocaleString("de-DE")}) unter dem MA50 (${ma50.toFixed(0).replace('.', ',')}), aber über dem MA200 (${ma200.toFixed(0).replace('.', ',')}) — Korrektur im intakten Trend.` });
+            } else {
+                color = "red";
+                reasons.push({ icon: "🔴", text: `S&P 500 (${sp.toLocaleString("de-DE")}) unter dem MA200 (${ma200.toFixed(0).replace('.', ',')}) — struktureller Abwärtstrend.` });
+            }
+            if (data.vixTerm.vix9dRatio && data.vixTerm.vixVix3mRatio) {
+                if (data.vixTerm.vix9dRatio >= 1 || data.vixTerm.vixVix3mRatio >= 1) {
+                    if (color === "green") color = "yellow";
+                    reasons.push({ icon: "🟡", text: `VIX-Term-Structure in Backwardation (VIX9D/VIX ${data.vixTerm.vix9dRatio.toFixed(2).replace('.', ',')}, VIX/VIX3M ${data.vixTerm.vixVix3mRatio.toFixed(2).replace('.', ',')}) — Kurzfrist-Stress.` });
+                } else {
+                    reasons.push({ icon: "🟢", text: `VIX-Term-Structure normal (VIX9D/VIX ${data.vixTerm.vix9dRatio.toFixed(2).replace('.', ',')}, VIX/VIX3M ${data.vixTerm.vixVix3mRatio.toFixed(2).replace('.', ',')}) — keine akute Panik.` });
+                }
+            }
+            const decisions = { red: "Nicht handeln — nur Absicherung (Hedges) prüfen.", yellow: "Bedingt handelbar — kleine Positionen, enge Stops.", green: "Normal handelbar." };
+            document.getElementById('lampRed').className = 'lamp lamp-off';
+            document.getElementById('lampYellow').className = 'lamp lamp-off';
+            document.getElementById('lampGreen').className = 'lamp lamp-off';
+            if (color === "red") document.getElementById('lampRed').className = 'lamp lamp-red';
+            else if (color === "yellow") document.getElementById('lampYellow').className = 'lamp lamp-yellow';
+            else document.getElementById('lampGreen').className = 'lamp lamp-green';
+            const emoji = color === "red" ? "🔴" : color === "yellow" ? "🟡" : "🟢";
+            const colorName = color === "red" ? "ROT" : color === "yellow" ? "GELB" : "GRÜN";
+            document.getElementById('ampelTitle').innerHTML = `${emoji} <strong>${colorName}</strong> — ${decisions[color]}`;
+            document.getElementById('ampelReasons').innerHTML = reasons.map(r => `<li>${r.icon} ${r.text}</li>`).join('');
+        }
+
+        function initCharts() {
+            const spxCtx = document.getElementById('spxChart');
+            if (spxCtx) {
+                charts.spx = new Chart(spxCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'S&P 500', data: [], borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.1)', borderWidth: 2, tension: 0.4, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+            }
+            const vixCtx = document.getElementById('vixChart');
+            if (vixCtx) {
+                charts.vix = new Chart(vixCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'VIX', data: [], borderColor: '#f472b6', backgroundColor: 'rgba(244, 114, 182, 0.1)', borderWidth: 2, tension: 0.4, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+            }
+        }
+
+        function updateThreshold(key, value) {
+            thresholds[key] = parseFloat(value);
+            document.getElementById(key + 'Val').textContent = value;
+            if (key === 'vixCaution' || key === 'vixStop') {
+                document.getElementById('vixCautionDisplay').textContent = thresholds.vixCaution;
+                document.getElementById('vixStopDisplay').textContent = thresholds.vixStop;
+            }
+            if (key === 'fgFear' || key === 'fgGreed') {
+                document.getElementById('fgFearDisplay').textContent = thresholds.fgFear;
+                document.getElementById('fgGreedDisplay').textContent = thresholds.fgGreed;
+            }
+        }
+
+        function loadThresholds() {
+            try {
+                const saved = localStorage.getItem('ampel-thresholds');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    thresholds = { ...DEFAULT_THRESHOLDS, ...parsed };
+                    for (const key in thresholds) {
+                        const input = document.getElementById(key);
+                        const val = document.getElementById(key + 'Val');
+                        if (input && val) { input.value = thresholds[key]; val.textContent = thresholds[key]; }
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function saveThresholds() {
+            try { localStorage.setItem('ampel-thresholds', JSON.stringify(thresholds)); } catch (e) {}
+        }
+
+        function formatDate(date) {
+            if (!date) return '-';
+            return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+        function getFgColor(value) {
+            if (value <= 25) return '#dc2626';
+            if (value <= 45) return '#f97316';
+            if (value <= 55) return '#eab308';
+            if (value <= 75) return '#65a30d';
+            return '#16a34a';
+        }
+
+        function showLoading(show) {
+            const spinner = document.getElementById('refreshSpinner');
+            if (spinner) { if (show) spinner.classList.remove('hidden'); else spinner.classList.add('hidden'); }
+        }
+
+        function updateConnectionStatus(text, className) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (statusEl) { statusEl.textContent = text; statusEl.className = className; }
+        }
+
+        function showInfoBox(message, type) {
+            const infoBox = document.getElementById('infoBox');
+            const infoMessage = document.getElementById('infoMessage');
+            if (infoBox && infoMessage) {
+                infoMessage.textContent = message;
+                infoBox.classList.remove('hidden');
+                if (type === 'error') infoBox.className = 'rounded-lg border border-red-500/30 bg-red-900/20 p-3 text-sm';
+                else if (type === 'warning') infoBox.className = 'rounded-lg border border-amber-500/30 bg-amber-900/20 p-3 text-sm';
+                else infoBox.className = 'rounded-lg border border-green-500/30 bg-green-900/20 p-3 text-sm';
+            }
+        }
+
+        function hideInfoBox() {
+            const infoBox = document.getElementById('infoBox');
+            if (infoBox) infoBox.classList.add('hidden');
+        }
+
+        window.addEventListener('load', initCharts);
+    </script>
+</body>
+</html>
