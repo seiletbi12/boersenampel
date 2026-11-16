@@ -313,17 +313,19 @@
         async function loadSPX() {
             const symbol = '^GSPC';
             try {
-                const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
+                const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
                 const response = await fetch(url, { cache: 'no-store' });
                 if (response.ok) {
                     const json = await response.json();
-                    if (json['Global Quote']) {
-                        const quote = json['Global Quote'];
+                    if (json['Time Series (Daily)']) {
+                        const dates = Object.keys(json['Time Series (Daily)']);
+                        const latest = json['Time Series (Daily)'][dates[0]];
+                        const prev = json['Time Series (Daily)'][dates[1]];
                         return {
-                            value: parseFloat(quote['05. price']),
-                            change: parseFloat(quote['09. change']),
-                            changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
-                            date: new Date(quote['07. latest trading day'])
+                            value: parseFloat(latest['4. close']),
+                            change: parseFloat(latest['4. close']) - parseFloat(prev['4. close']),
+                            changePercent: ((parseFloat(latest['4. close']) - parseFloat(prev['4. close'])) / parseFloat(prev['4. close']) * 100),
+                            date: new Date(dates[0])
                         };
                     }
                 }
@@ -337,17 +339,19 @@
         async function loadVIX() {
             const symbol = '^VIX';
             try {
-                const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
+                const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
                 const response = await fetch(url, { cache: 'no-store' });
                 if (response.ok) {
                     const json = await response.json();
-                    if (json['Global Quote']) {
-                        const quote = json['Global Quote'];
+                    if (json['Time Series (Daily)']) {
+                        const dates = Object.keys(json['Time Series (Daily)']);
+                        const latest = json['Time Series (Daily)'][dates[0]];
+                        const prev = json['Time Series (Daily)'][dates[1]];
                         return {
-                            value: parseFloat(quote['05. price']),
-                            change: parseFloat(quote['09. change']),
-                            changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
-                            date: new Date(quote['07. latest trading day'])
+                            value: parseFloat(latest['4. close']),
+                            change: parseFloat(latest['4. close']) - parseFloat(prev['4. close']),
+                            changePercent: ((parseFloat(latest['4. close']) - parseFloat(prev['4. close'])) / parseFloat(prev['4. close']) * 100),
+                            date: new Date(dates[0])
                         };
                     }
                 }
