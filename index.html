@@ -79,8 +79,8 @@
                 <p class="mt-1 text-xs text-slate-400" id="spxNote">Laedt Daten...</p>
                 <div class="mt-3 h-28"><canvas id="spxChart"></canvas></div>
                 <p class="mt-1 text-[10px] text-slate-500">
-                    <span class="text-yellow-400">– –</span> MA50 <span id="ma50Value">7.693</span> ·
-                    <span class="text-green-400">– –</span> MA200 <span id="ma200Value">7.320</span>
+                    <span class="text-yellow-400">– –</span> MA50 <span id="ma50Value">7692.97</span> ·
+                    <span class="text-green-400">– –</span> MA200 <span id="ma200Value">7320.35</span>
                 </p>
             </div>
 
@@ -140,7 +140,7 @@
                 <div class="flex items-baseline gap-3"><span class="text-3xl font-bold" id="trendStatus">-</span></div>
                 <div class="mt-3 space-y-2 text-sm">
                     <div class="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-1.5">
-                        <span class="text-slate-300">S&P 500 (Schluss)</span>
+                        <span class="text-slate-300">S&P 500 (via SPY)</span>
                         <span class="font-mono font-semibold text-sky-400" id="trendSpx">-</span>
                     </div>
                     <div class="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-1.5">
@@ -212,11 +212,14 @@
         </div>
 
         <p class="pb-4 text-center text-xs text-slate-500">
-            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a>, <a href="https://finance.yahoo.com/" target="_blank" class="text-sky-400 hover:underline">Yahoo Finance</a> · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
+            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a>, <a href="https://www.alphavantage.co/" target="_blank" class="text-sky-400 hover:underline">Alpha Vantage</a> (SPY, VXX) · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
         </p>
     </div>
 
     <script>
+        // Alpha Vantage API-Key (User hat diesen bereitgestellt)
+        const ALPHA_VANTAGE_API_KEY = '8YJQGE39KQKH7KBU';
+        
         const DEFAULT_THRESHOLDS = { vixCaution: 20, vixStop: 25, fgFear: 26, fgGreed: 76 };
         const data = {
             spx: { value: null, change: null, changePercent: null, date: null, ma50: 7692.97, ma200: 7320.35, series: [] },
@@ -229,16 +232,6 @@
         };
         let thresholds = { ...DEFAULT_THRESHOLDS };
         let charts = {};
-
-        // Verbesserte Proxy-Liste mit mehr Optionen
-        const PROXIES = [
-            'https://api.allorigins.win/raw?url=',
-            'https://corsproxy.io/?',
-            'https://thingproxy.freeboard.io/fetch/',
-            'https://proxy.cors.sh/',
-            'https://cors-anywhere.herokuapp.com/',
-            'https://api.codetabs.com/v1/proxy/?quest='
-        ];
 
         document.addEventListener('DOMContentLoaded', () => {
             loadThresholds();
@@ -264,7 +257,7 @@
             data.marketStatus = { isOpen: isOpen, status: statusText };
             document.getElementById('marketStatus').innerHTML = statusText;
             if (data.spx.value) {
-                document.getElementById('spxNote').textContent = isOpen ? `Live-Kurs (ca. 15 Min. verzögert)` : `Schlusskurs vom ${formatDate(data.spx.date)}`;
+                document.getElementById('spxNote').textContent = isOpen ? `Live-Kurs (SPY ETF, ca. 15 Min. verzögert)` : `Schlusskurs vom ${formatDate(data.spx.date)} (SPY)`;
             }
         }
 
@@ -341,103 +334,78 @@
         }
 
         async function loadSPX() {
-            const symbol = '^GSPC';
+            // SPY ETF folgt dem S&P 500 Index 1:1
+            const symbol = 'SPY';
             
-            // Erst versuche es mit direkten Proxys
-            for (const proxy of PROXIES) {
-                try {
-                    const baseUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-                    const proxyUrl = proxy + encodeURIComponent(baseUrl);
-                    const response = await fetch(proxyUrl, { cache: 'no-store' });
-                    if (response.ok) {
-                        const json = await response.json();
-                        if (json.chart && json.chart.result) {
-                            return parseYahooData(json, symbol);
-                        }
-                    }
-                } catch (e) { 
-                    console.log(`Proxy ${proxy} failed:`, e.message);
-                    continue; 
+            try {
+                const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&cache=${Date.now()}`;
+                const response = await fetch(url, { cache: 'no-store' });
+                
+                if (!response.ok) {
+                    throw new Error(`Alpha Vantage API Fehler: ${response.status}`);
                 }
+                
+                const json = await response.json();
+                
+                if (json['Global Quote']) {
+                    const quote = json['Global Quote'];
+                    const value = parseFloat(quote['05. price']);
+                    const change = parseFloat(quote['09. change']);
+                    const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+                    const dateStr = quote['07. latest trading day'];
+                    const date = new Date(dateStr);
+                    
+                    return { value, change, changePercent, date };
+                } else if (json.Note) {
+                    // Rate Limit oder anderer Fehler
+                    console.warn('Alpha Vantage:', json.Note);
+                    throw new Error(json.Note);
+                } else {
+                    throw new Error('Ungültige API-Antwort');
+                }
+                
+            } catch (error) {
+                console.error('SPX Fehler:', error);
+                showInfoBox('⚠️ S&P 500 (SPY): Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
+                return { value: 7353.73, change: -4.36, changePercent: -0.06, date: new Date() };
             }
-            
-            // Direkter Versuch ohne Proxy (wird wahrscheinlich durch CORS blockiert)
-            try {
-                const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`, { cache: 'no-store' });
-                if (response.ok) {
-                    const json = await response.json();
-                    return parseYahooData(json, symbol);
-                }
-            } catch (e) {}
-            
-            // Letzter Versuch: Versuche es mit einem anderen Endpunkt
-            try {
-                const response = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`, { cache: 'no-store' });
-                if (response.ok) {
-                    const json = await response.json();
-                    return parseYahooData(json, symbol);
-                }
-            } catch (e) {}
-            
-            showInfoBox('⚠️ S&P 500: Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
-            return { value: 7353.73, change: -4.36, changePercent: -0.06, date: new Date() };
         }
 
         async function loadVIX() {
-            const symbol = '^VIX';
+            // VXX ETF folgt der VIX-Bewertung
+            const symbol = 'VXX';
             
-            // Erst versuche es mit direkten Proxys
-            for (const proxy of PROXIES) {
-                try {
-                    const baseUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-                    const proxyUrl = proxy + encodeURIComponent(baseUrl);
-                    const response = await fetch(proxyUrl, { cache: 'no-store' });
-                    if (response.ok) {
-                        const json = await response.json();
-                        if (json.chart && json.chart.result) {
-                            return parseYahooData(json, symbol);
-                        }
-                    }
-                } catch (e) { 
-                    console.log(`Proxy ${proxy} failed:`, e.message);
-                    continue; 
-                }
-            }
-            
-            // Direkter Versuch ohne Proxy
             try {
-                const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`, { cache: 'no-store' });
-                if (response.ok) {
-                    const json = await response.json();
-                    return parseYahooData(json, symbol);
+                const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&cache=${Date.now()}`;
+                const response = await fetch(url, { cache: 'no-store' });
+                
+                if (!response.ok) {
+                    throw new Error(`Alpha Vantage API Fehler: ${response.status}`);
                 }
-            } catch (e) {}
-            
-            // Letzter Versuch: Versuche es mit einem anderen Endpunkt
-            try {
-                const response = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`, { cache: 'no-store' });
-                if (response.ok) {
-                    const json = await response.json();
-                    return parseYahooData(json, symbol);
+                
+                const json = await response.json();
+                
+                if (json['Global Quote']) {
+                    const quote = json['Global Quote'];
+                    const value = parseFloat(quote['05. price']);
+                    const change = parseFloat(quote['09. change']);
+                    const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+                    const dateStr = quote['07. latest trading day'];
+                    const date = new Date(dateStr);
+                    
+                    return { value, change, changePercent, date };
+                } else if (json.Note) {
+                    console.warn('Alpha Vantage:', json.Note);
+                    throw new Error(json.Note);
+                } else {
+                    throw new Error('Ungültige API-Antwort');
                 }
-            } catch (e) {}
-            
-            showInfoBox('⚠️ VIX: Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
-            return { value: 26.36, change: -1.82, changePercent: -6.46, date: new Date() };
-        }
-
-        function parseYahooData(json, symbol) {
-            if (!json.chart || !json.chart.result || json.chart.result.length === 0) {
-                throw new Error('Ungültige Yahoo Finance Antwort');
+                
+            } catch (error) {
+                console.error('VIX Fehler:', error);
+                showInfoBox('⚠️ VIX (VXX): Live-Daten nicht verfügbar. Zeige Fallback-Werte.', 'warning');
+                return { value: 26.36, change: -1.82, changePercent: -6.46, date: new Date() };
             }
-            const result = json.chart.result[0];
-            const meta = result.meta;
-            const timestamp = result.timestamp[0] * 1000;
-            const current = meta.regularMarketPrice || meta.chartPreviousClose;
-            const prevClose = meta.chartPreviousClose || meta.regularMarketPrice;
-            const change = meta.regularMarketChange || (current - prevClose);
-            const changePercent = meta.regularMarketChangePercent || ((change / prevClose) * 100);
-            return { value: current, change: change, changePercent: changePercent, date: new Date(timestamp) };
         }
 
         function updateSpxDisplay() {
@@ -462,7 +430,7 @@
             const changePercent = (data.vix.changePercent || 0);
             const isPositive = changePercent >= 0;
             changeEl.textContent = (isPositive ? '▲' : '▼') + ' ' + Math.abs(changePercent).toFixed(0) + ' % ggü. Vortag';
-            document.getElementById('vixDate').textContent = formatDate(data.vix.date) + ' (live)';
+            document.getElementById('vixDate').textContent = formatDate(data.vix.date) + ' (live, VXX)';
             const note = data.vix.value >= thresholds.vixStop ? 'rot – Stopp-Limit überschritten.' : data.vix.value >= thresholds.vixCaution ? 'gelb.' : 'grün.';
             document.getElementById('vixNote').innerHTML = 'Deine Faustregel: gelb ab <span>' + thresholds.vixCaution + '</span>, rot ab <span>' + thresholds.vixStop + '</span>. Heute: ' + note;
         }
@@ -533,7 +501,7 @@
             document.getElementById('trendMa50').style.color = sp >= ma50 ? '#22c55e' : '#f87171';
             document.getElementById('trendMa200').style.color = sp >= ma200 ? '#22c55e' : '#f87171';
             document.getElementById('trendDate').textContent = formatDate(new Date());
-            document.getElementById('trendBasis').textContent = `Basis: Schlusskurs ${formatDate(new Date())} (${sp.toLocaleString('de-DE')}). Über MA50 & MA200 = grün · über MA200, unter MA50 = gelb · unter MA200 = rot.`;
+            document.getElementById('trendBasis').textContent = `Basis: SPY ETF ${sp.toLocaleString('de-DE', { maximumFractionDigits: 0 })} (folgt S&P 500 1:1). Über MA50 & MA200 = grün · über MA200, unter MA50 = gelb · unter MA200 = rot.`;
         }
 
         function updateTimestamps() {
@@ -551,15 +519,15 @@
             const reasons = [];
             let color = "green";
             
-            // VIX Check
+            // VIX Check (VXX ETF)
             if (data.vix.value && data.vix.value >= thresholds.vixStop) {
                 color = "red";
-                reasons.push({ icon: "🔴", text: `VIX ${data.vix.value.toFixed(2).replace('.', ',')} liegt über deinem Stopp-Limit (${thresholds.vixStop}) – hohes Volatilitätsregime, Finger weg von neuen Positionen.` });
+                reasons.push({ icon: "🔴", text: `VIX (VXX: ${data.vix.value.toFixed(2).replace('.', ',')}) liegt über deinem Stopp-Limit (${thresholds.vixStop}) – hohes Volatilitätsregime, Finger weg von neuen Positionen.` });
             } else if (data.vix.value && data.vix.value >= thresholds.vixCaution) {
                 if (color !== "red") color = "yellow";
-                reasons.push({ icon: "🟡", text: `VIX ${data.vix.value.toFixed(2).replace('.', ',')} über deinem Vorsichtswert (${thresholds.vixCaution}) – erhöhte Nervosität, nur kleine Positionen.` });
+                reasons.push({ icon: "🟡", text: `VIX (VXX: ${data.vix.value.toFixed(2).replace('.', ',')}) über deinem Vorsichtswert (${thresholds.vixCaution}) – erhöhte Nervosität, nur kleine Positionen.` });
             } else {
-                reasons.push({ icon: "🟢", text: `VIX ${data.vix.value ? data.vix.value.toFixed(2).replace('.', ',') : '?'} unter deinem Vorsichtswert (${thresholds.vixCaution}) – ruhiges Volatilitätsregime.` });
+                reasons.push({ icon: "🟢", text: `VIX (VXX: ${data.vix.value ? data.vix.value.toFixed(2).replace('.', ',') : '?'} unter deinem Vorsichtswert (${thresholds.vixCaution}) – ruhiges Volatilitätsregime.` });
             }
             
             // Fear & Greed Check
@@ -588,18 +556,18 @@
                 }
             }
             
-            // Trend Check
+            // Trend Check (SPY ETF)
             const sp = data.spx.value || data.spx.lastClose || 7353.73;
             const ma50 = data.spx.ma50;
             const ma200 = data.spx.ma200;
             if (sp >= ma50 && sp >= ma200) {
-                reasons.push({ icon: "🟢", text: `S&P 500 (${sp.toLocaleString("de-DE")}) über MA50 (${ma50.toFixed(0).replace('.', ',')}) und MA200 (${ma200.toFixed(0).replace('.', ',')}) – struktureller Aufwärtstrend intakt.` });
+                reasons.push({ icon: "🟢", text: `S&P 500 (SPY: ${sp.toLocaleString("de-DE")}) über MA50 (${ma50.toFixed(0).replace('.', ',')}) und MA200 (${ma200.toFixed(0).replace('.', ',')}) – struktureller Aufwärtstrend intakt.` });
             } else if (sp >= ma200) {
                 if (color === "green") color = "yellow";
-                reasons.push({ icon: "🟡", text: `S&P 500 (${sp.toLocaleString("de-DE")}) unter dem MA50 (${ma50.toFixed(0).replace('.', ',')}), aber über dem MA200 (${ma200.toFixed(0).replace('.', ',')}) – Korrektur im intakten Trend.` });
+                reasons.push({ icon: "🟡", text: `S&P 500 (SPY: ${sp.toLocaleString("de-DE")}) unter dem MA50 (${ma50.toFixed(0).replace('.', ',')}), aber über dem MA200 (${ma200.toFixed(0).replace('.', ',')}) – Korrektur im intakten Trend.` });
             } else {
                 color = "red";
-                reasons.push({ icon: "🔴", text: `S&P 500 (${sp.toLocaleString("de-DE")}) unter dem MA200 (${ma200.toFixed(0).replace('.', ',')}) – struktureller Abwärtstrend.` });
+                reasons.push({ icon: "🔴", text: `S&P 500 (SPY: ${sp.toLocaleString("de-DE")}) unter dem MA200 (${ma200.toFixed(0).replace('.', ',')}) – struktureller Abwärtstrend.` });
             }
             
             // VIX Term Structure Check
