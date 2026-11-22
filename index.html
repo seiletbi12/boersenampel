@@ -212,13 +212,13 @@
         </div>
 
         <p class="pb-4 text-center text-xs text-slate-500">
-            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a>, <a href="https://twelvedata.com/" target="_blank" class="text-sky-400 hover:underline">Twelve Data</a> (^GSPC, ^VIX) · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
+            Datenstand: <span id="dataTimestamp">-</span> · Quellen: <a href="https://feargreedmeter.com/" target="_blank" class="text-sky-400 hover:underline">feargreedmeter.com</a>, <a href="https://finance.yahoo.com/" target="_blank" class="text-sky-400 hover:underline">Yahoo Finance</a> (via Cloudflare Worker) · Stimmungs- und Risiko-Einschätzung, keine Anlageberatung.
         </p>
     </div>
 
     <script>
-        // Twelve Data API - unterstützt Index-Symbole wie ^GSPC und ^VIX mit CORS
-        const TWELVE_DATA_API_KEY = 'demo'; // Demo-Key funktioniert für ^GSPC und ^VIX
+        // Cloudflare Worker URL für Yahoo Finance (User: tobseil87)
+        const PROXY_URL = 'https://yahoo-finance-proxy.tobseil87.workers.dev/?url=';
         
         const DEFAULT_THRESHOLDS = { vixCaution: 20, vixStop: 25, fgFear: 26, fgGreed: 76 };
         const data = {
@@ -335,30 +335,31 @@
         }
 
         async function loadSPX() {
-            // Echter S&P 500 Index von Twelve Data
+            // Echter S&P 500 Index von Yahoo Finance über Cloudflare Worker
             const symbol = '^GSPC';
             
             try {
-                const url = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}&source=docs&cache=${Date.now()}`;
-                const response = await fetch(url, { cache: 'no-store' });
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+                const proxyUrl = PROXY_URL + encodeURIComponent(yahooUrl);
+                const response = await fetch(proxyUrl, { cache: 'no-store' });
                 
                 if (!response.ok) {
-                    throw new Error(`Twelve Data API Fehler: ${response.status}`);
+                    throw new Error(`Yahoo Finance Fehler: ${response.status}`);
                 }
                 
                 const json = await response.json();
                 
-                if (json && json.price) {
-                    const value = parseFloat(json.price);
-                    const change = parseFloat(json.change) || 0;
-                    const changePercent = parseFloat(json.percent_change) || 0;
-                    const date = new Date();
-                    
-                    return { value, change, changePercent, date };
-                } else if (json.status === 'error') {
-                    throw new Error(json.message || 'Unbekannter Fehler');
+                if (json.chart && json.chart.result && json.chart.result[0]) {
+                    const result = json.chart.result[0];
+                    const meta = result.meta;
+                    const timestamp = result.timestamp[0] * 1000;
+                    const current = meta.regularMarketPrice || meta.chartPreviousClose;
+                    const prevClose = meta.chartPreviousClose || meta.regularMarketPrice;
+                    const change = meta.regularMarketChange || (current - prevClose);
+                    const changePercent = meta.regularMarketChangePercent || ((change / prevClose) * 100);
+                    return { value: current, change: change, changePercent: changePercent, date: new Date(timestamp) };
                 } else {
-                    throw new Error('Ungültige API-Antwort');
+                    throw new Error('Ungültige Yahoo Finance Antwort');
                 }
                 
             } catch (error) {
@@ -369,30 +370,31 @@
         }
 
         async function loadVIX() {
-            // Echter VIX Index von Twelve Data
+            // Echter VIX Index von Yahoo Finance über Cloudflare Worker
             const symbol = '^VIX';
             
             try {
-                const url = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}&source=docs&cache=${Date.now()}`;
-                const response = await fetch(url, { cache: 'no-store' });
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+                const proxyUrl = PROXY_URL + encodeURIComponent(yahooUrl);
+                const response = await fetch(proxyUrl, { cache: 'no-store' });
                 
                 if (!response.ok) {
-                    throw new Error(`Twelve Data API Fehler: ${response.status}`);
+                    throw new Error(`Yahoo Finance Fehler: ${response.status}`);
                 }
                 
                 const json = await response.json();
                 
-                if (json && json.price) {
-                    const value = parseFloat(json.price);
-                    const change = parseFloat(json.change) || 0;
-                    const changePercent = parseFloat(json.percent_change) || 0;
-                    const date = new Date();
-                    
-                    return { value, change, changePercent, date };
-                } else if (json.status === 'error') {
-                    throw new Error(json.message || 'Unbekannter Fehler');
+                if (json.chart && json.chart.result && json.chart.result[0]) {
+                    const result = json.chart.result[0];
+                    const meta = result.meta;
+                    const timestamp = result.timestamp[0] * 1000;
+                    const current = meta.regularMarketPrice || meta.chartPreviousClose;
+                    const prevClose = meta.chartPreviousClose || meta.regularMarketPrice;
+                    const change = meta.regularMarketChange || (current - prevClose);
+                    const changePercent = meta.regularMarketChangePercent || ((change / prevClose) * 100);
+                    return { value: current, change: change, changePercent: changePercent, date: new Date(timestamp) };
                 } else {
-                    throw new Error('Ungültige API-Antwort');
+                    throw new Error('Ungültige Yahoo Finance Antwort');
                 }
                 
             } catch (error) {
