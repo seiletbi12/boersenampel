@@ -4,162 +4,192 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Börsenampel v2.0 - Twelve Data</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="description" content="Täglicher Markt-Check mit Ampel-System">
     <link rel="manifest" href="/manifest.json">
     <style>
-        :root {
-            --ampel-rot: #ef4444;
-            --ampel-gelb: #f59e0b;
-            --ampel-gruen: #10b981;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1e293b;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin-bottom: 10px; }
+        h2 { font-size: 1.3rem; margin-bottom: 15px; color: #94a3b8; }
+        h3 { font-size: 1.1rem; margin-bottom: 10px; }
+        .card {
+            background: #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .ampel-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
         }
         .ampel {
-            width: 120px;
-            height: 300px;
-            border-radius: 15px;
-            background: #374151;
+            width: 80px;
+            height: 200px;
+            background: #475569;
+            border-radius: 10px;
             position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
         }
         .ampel-light {
-            width: 100px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
             margin: 10px auto;
             transition: all 0.3s ease;
         }
-        .ampel-rot { background: var(--ampel-rot); box-shadow: 0 0 20px var(--ampel-rot); }
-        .ampel-gelb { background: var(--ampel-gelb); box-shadow: 0 0 20px var(--ampel-gelb); }
-        .ampel-gruen { background: var(--ampel-gruen); box-shadow: 0 0 20px var(--ampel-gruen); }
-        .ampel-off { background: #6b7280; opacity: 0.3; }
-        .pulse {
-            animation: pulse 2s infinite;
+        .ampel-rot { background: #ef4444; box-shadow: 0 0 20px #ef4444; }
+        .ampel-gelb { background: #f59e0b; box-shadow: 0 0 20px #f59e0b; }
+        .ampel-gruen { background: #22c55e; box-shadow: 0 0 20px #22c55e; }
+        .ampel-off { background: #475569; opacity: 0.5; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        .price { font-size: 2rem; font-weight: bold; }
+        .price-change { font-size: 1rem; }
+        .change-positive { color: #22c55e; }
+        .change-negative { color: #ef4444; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
         }
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
+        .btn:hover { background: #2563eb; }
+        .btn:active { background: #1d4ed8; }
+        .status-open { color: #22c55e; }
+        .status-closed { color: #ef4444; }
+        .status-weekend { color: #f59e0b; }
+        .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .settings-input { 
+            background: #475569; 
+            border: 1px solid #64748b; 
+            color: #e2e8f0; 
+            padding: 8px 12px; 
+            border-radius: 6px;
+            width: 100%;
         }
-        .card {
-            background: rgba(31, 41, 55, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        .version-badge {
+            background: #3b82f6;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            .settings-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
+<body>
+    <div class="container">
         <!-- Header -->
-        <header class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 dark:text-white mb-2">Börsenampel <span class="text-sm bg-blue-500 text-white px-2 py-1 rounded">v2.0 - Twelve Data</span></h1>
-            <p class="text-gray-600 dark:text-gray-300">Echtzeit-Marktcheck mit SPY & VIXY</p>
-            <p id="lastUpdate" class="text-xs text-gray-500 mt-2">Letzte Aktualisierung: -</p>
+        <header class="text-center mb-6">
+            <h1>📈 Börsenampel <span class="version-badge">v2.0 - Twelve Data</span></h1>
+            <p class="text-sm" id="lastUpdate">Letzte Aktualisierung: -</p>
         </header>
 
-        <!-- Main Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Ampel -->
-            <div class="card rounded-xl p-6 text-center">
-                <h2 class="text-xl font-semibold text-white mb-4">Marktstimmung</h2>
-                <div class="ampel mx-auto mb-4">
+        <!-- Ampel -->
+        <div class="card">
+            <h2>🚦 Marktstimmung</h2>
+            <div class="ampel-container">
+                <div class="ampel">
                     <div id="ampel-rot" class="ampel-light ampel-off"></div>
                     <div id="ampel-gelb" class="ampel-light ampel-off"></div>
                     <div id="ampel-gruen" class="ampel-light ampel-off"></div>
                 </div>
-                <p id="ampel-text" class="text-white text-lg font-bold">Lädt...</p>
-                <p id="ampel-reason" class="text-gray-300 text-sm mt-2">Warte auf Daten...</p>
+                <div>
+                    <div id="ampel-text" class="price">Lädt...</div>
+                    <p id="ampel-reason" style="color: #94a3b8; font-size: 0.9rem; margin-top: 5px;">Warte auf Daten...</p>
+                </div>
             </div>
+        </div>
 
+        <!-- Daten Grid -->
+        <div class="grid">
             <!-- S&P 500 -->
-            <div class="card rounded-xl p-6">
-                <div class="flex justify-between items-start mb-2">
-                    <h2 class="text-xl font-semibold text-white">S&P 500</h2>
-                    <span class="text-xs bg-blue-600 text-white px-2 py-1 rounded">SPY ETF</span>
-                </div>
-                <div class="text-3xl font-bold text-white mb-1" id="spx-price">-</div>
-                <div class="flex items-center text-sm">
-                    <span id="spx-change" class="text-white">-</span>
-                    <span id="spx-change-pct" class="text-white ml-2">-</span>
-                </div>
-                <div class="text-gray-400 text-xs mt-2">
-                    <span>Vorheriger Schluss: </span>
-                    <span id="spx-prev-close">-</span>
+            <div class="card">
+                <h3>S&P 500 <span style="font-size: 0.7rem; background: #3b82f6; padding: 2px 6px; border-radius: 4px;">SPY ETF</span></h3>
+                <div class="price" id="spx-price">-</div>
+                <div class="price-change" id="spx-change">-</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
+                    Vorher: <span id="spx-prev-close">-</span>
                 </div>
             </div>
 
             <!-- VIX -->
-            <div class="card rounded-xl p-6">
-                <div class="flex justify-between items-start mb-2">
-                    <h2 class="text-xl font-semibold text-white">VIX</h2>
-                    <span class="text-xs bg-purple-600 text-white px-2 py-1 rounded">VIXY ETF</span>
-                </div>
-                <div class="text-3xl font-bold text-white mb-1" id="vix-price">-</div>
-                <div class="flex items-center text-sm">
-                    <span id="vix-change" class="text-white">-</span>
-                    <span id="vix-change-pct" class="text-white ml-2">-</span>
-                </div>
-                <div class="text-gray-400 text-xs mt-2">
-                    <span>Vorheriger Schluss: </span>
-                    <span id="vix-prev-close">-</span>
+            <div class="card">
+                <h3>VIX <span style="font-size: 0.7rem; background: #a855f7; padding: 2px 6px; border-radius: 4px;">VIXY ETF</span></h3>
+                <div class="price" id="vix-price">-</div>
+                <div class="price-change" id="vix-change">-</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
+                    Vorher: <span id="vix-prev-close">-</span>
                 </div>
             </div>
 
             <!-- Fear & Greed -->
-            <div class="card rounded-xl p-6">
-                <div class="flex justify-between items-start mb-2">
-                    <h2 class="text-xl font-semibold text-white">Fear & Greed</h2>
-                    <span class="text-xs bg-orange-600 text-white px-2 py-1 rounded">CNN</span>
-                </div>
-                <div class="text-3xl font-bold text-white mb-1" id="fng-value">-</div>
-                <div class="text-white text-lg" id="fng-text">-</div>
-                <div class="text-gray-400 text-xs mt-2">
-                    <span>Letzte Aktualisierung: </span>
-                    <span id="fng-time">-</span>
+            <div class="card">
+                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">CNN</span></h3>
+                <div class="price" id="fng-value">-</div>
+                <div style="font-size: 1.2rem; color: #e2e8f0;" id="fng-text">-</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
+                    Aktualisiert: <span id="fng-time">-</span>
                 </div>
             </div>
 
             <!-- Marktstatus -->
-            <div class="card rounded-xl p-6">
-                <h2 class="text-xl font-semibold text-white mb-4">Marktstatus</h2>
-                <div id="marktstatus" class="text-center">
-                    <div class="text-4xl mb-2">🕒</div>
-                    <p class="text-white text-lg" id="marktstatus-text">Lädt...</p>
-                    <p class="text-gray-300 text-sm" id="marktstatus-time">-</p>
-                </div>
+            <div class="card">
+                <h3>Marktstatus</h3>
+                <div style="text-align: center; font-size: 3rem;" id="marktstatus-emoji">🕒</div>
+                <div style="text-align: center; font-size: 1.2rem; margin: 10px 0;" id="marktstatus-text">Lädt...</div>
+                <div style="text-align: center; color: #94a3b8; font-size: 0.9rem;" id="marktstatus-next">-</div>
             </div>
         </div>
 
         <!-- Aktualisierungs-Button -->
-        <div class="text-center mb-8">
-            <button onclick="loadAllData()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 transform hover:scale-105">
-                🔄 Daten aktualisieren
-            </button>
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="loadAllData()" class="btn">🔄 Daten aktualisieren</button>
         </div>
 
-        <!-- Schwellenwerte Einstellungen -->
-        <div class="card rounded-xl p-6 mb-8">
-            <h2 class="text-xl font-semibold text-white mb-4">Ampel-Schwellenwerte anpassen</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Schwellenwerte -->
+        <div class="card">
+            <h2>⚙️ Ampel-Schwellenwerte anpassen</h2>
+            <div class="settings-grid">
                 <div>
-                    <label class="text-white text-sm block mb-2">VIX Grün (niedrig)</label>
-                    <input type="number" id="vix-green" value="15" class="w-full p-2 rounded bg-gray-700 text-white">
+                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">VIX Grün (niedrig)</label>
+                    <input type="number" id="vix-green" value="15" class="settings-input">
                 </div>
                 <div>
-                    <label class="text-white text-sm block mb-2">VIX Gelb (mittel)</label>
-                    <input type="number" id="vix-yellow" value="20" class="w-full p-2 rounded bg-gray-700 text-white">
+                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">VIX Gelb (mittel)</label>
+                    <input type="number" id="vix-yellow" value="20" class="settings-input">
                 </div>
                 <div>
-                    <label class="text-white text-sm block mb-2">Fear & Greed Grün (hoch)</label>
-                    <input type="number" id="fng-green" value="70" class="w-full p-2 rounded bg-gray-700 text-white">
+                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Fear & Greed Grün (hoch)</label>
+                    <input type="number" id="fng-green" value="70" class="settings-input">
                 </div>
                 <div>
-                    <label class="text-white text-sm block mb-2">Fear & Greed Gelb (neutral)</label>
-                    <input type="number" id="fng-yellow" value="40" class="w-full p-2 rounded bg-gray-700 text-white">
+                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Fear & Greed Gelb (neutral)</label>
+                    <input type="number" id="fng-yellow" value="40" class="settings-input">
                 </div>
             </div>
-            <button onclick="saveThresholds()" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded">
-                Schwellenwerte speichern
-            </button>
+            <div style="text-align: center; margin-top: 15px;">
+                <button onclick="saveThresholds()" class="btn" style="background: #22c55e;">💾 Schwellenwerte speichern</button>
+            </div>
         </div>
     </div>
 
@@ -167,13 +197,7 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful');
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
+                navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
             });
         }
     </script>
@@ -213,23 +237,22 @@
             };
             localStorage.setItem('boersenampelThresholds', JSON.stringify(thresholds));
             alert('Schwellenwerte gespeichert!');
-            loadAllData(); // Aktualisiere die Ampel mit neuen Schwellenwerten
+            loadAllData();
         }
 
-        // Lade Marktstatus (US-Markt: 15:30-22:00 MEZ = 9:30-16:00 EST)
+        // Lade Marktstatus
         function getMarktStatus() {
             const now = new Date();
-            // MEZ: US-Markt ist 15:30-22:00 MEZ offen (9:30-16:00 EST)
             const marketOpenStart = 15; // 15:30 MEZ
             const marketOpenEnd = 22;   // 22:00 MEZ
-
             const currentHour = now.getHours();
             const currentMinute = now.getMinutes();
-            const isWeekend = now.getDay() === 0 || now.getDay() === 6; // Samstag/Sonntag
+            const isWeekend = now.getDay() === 0 || now.getDay() === 6;
 
             let isOpen = false;
             let statusText = '';
             let emoji = '🕒';
+            let cssClass = '';
 
             if (!isWeekend) {
                 if ((currentHour > marketOpenStart || (currentHour === marketOpenStart && currentMinute >= 30)) &&
@@ -237,13 +260,16 @@
                     isOpen = true;
                     statusText = 'Geöffnet';
                     emoji = '🟢';
+                    cssClass = 'status-open';
                 } else {
                     statusText = 'Geschlossen';
                     emoji = '🔴';
+                    cssClass = 'status-closed';
                 }
             } else {
                 statusText = 'Wochenende';
                 emoji = '📅';
+                cssClass = 'status-weekend';
             }
 
             const nextOpen = !isOpen && !isWeekend ?
@@ -252,23 +278,17 @@
                 `Öffnet morgen um ${marketOpenStart}:30 MEZ` :
                 '';
 
-            return {
-                isOpen: isOpen,
-                text: statusText,
-                emoji: emoji,
-                nextOpen: nextOpen
-            };
+            return { isOpen, text: statusText, emoji, nextOpen, cssClass };
         }
 
-        // Lade SPX und VIX Daten vom Worker
+        // Lade Markt-Daten vom Worker
         async function loadMarketData() {
             try {
                 const response = await fetch(WORKER_URL, { cache: 'no-store' });
                 if (!response.ok) throw new Error(`Worker-Response: ${response.status}`);
-
                 const data = await response.json();
 
-                // SPY (S&P 500 ETF) Daten
+                // SPY Daten
                 if (data.sp500) {
                     const spx = data.sp500;
                     document.getElementById('spx-price').textContent = spx.price?.toFixed(2) || '-';
@@ -276,15 +296,12 @@
 
                     const change = spx.change || 0;
                     const changePct = spx.changePercent || 0;
-                    const changeColor = change >= 0 ? 'text-green-400' : 'text-red-400';
-
-                    document.getElementById('spx-change').innerHTML = `${change >= 0 ? '+' : ''}${change.toFixed(2)}`;
-                    document.getElementById('spx-change').className = `text-sm ${changeColor}`;
-                    document.getElementById('spx-change-pct').innerHTML = `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`;
-                    document.getElementById('spx-change-pct').className = `text-sm ${changeColor}`;
+                    const changeColor = change >= 0 ? 'change-positive' : 'change-negative';
+                    document.getElementById('spx-change').innerHTML = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+                    document.getElementById('spx-change').className = `price-change ${changeColor}`;
                 }
 
-                // VIXY (VIX ETF) Daten
+                // VIXY Daten
                 if (data.vix) {
                     const vix = data.vix;
                     document.getElementById('vix-price').textContent = vix.price?.toFixed(2) || '-';
@@ -292,12 +309,9 @@
 
                     const change = vix.change || 0;
                     const changePct = vix.changePercent || 0;
-                    const changeColor = change >= 0 ? 'text-green-400' : 'text-red-400';
-
-                    document.getElementById('vix-change').innerHTML = `${change >= 0 ? '+' : ''}${change.toFixed(2)}`;
-                    document.getElementById('vix-change').className = `text-sm ${changeColor}`;
-                    document.getElementById('vix-change-pct').innerHTML = `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`;
-                    document.getElementById('vix-change-pct').className = `text-sm ${changeColor}`;
+                    const changeColor = change >= 0 ? 'change-positive' : 'change-negative';
+                    document.getElementById('vix-change').innerHTML = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+                    document.getElementById('vix-change').className = `price-change ${changeColor}`;
                 }
 
                 // Aktualisierungszeit
@@ -307,45 +321,40 @@
                 }
 
                 return data;
-
             } catch (error) {
-                console.error('Fehler beim Laden der Markt-Daten:', error);
+                console.error('Fehler Markt-Daten:', error);
                 document.getElementById('spx-price').textContent = 'Fehler';
                 document.getElementById('vix-price').textContent = 'Fehler';
                 throw error;
             }
         }
 
-        // Lade Fear & Greed Index von CNN (über alternative.me)
+        // Lade Fear & Greed
         async function loadFearGreed() {
             try {
                 const response = await fetch(FNG_URL, { cache: 'no-store' });
                 if (!response.ok) throw new Error(`FNG-Response: ${response.status}`);
-
                 const data = await response.json();
 
                 if (data.fng) {
                     const fng = data.fng;
                     document.getElementById('fng-value').textContent = fng.value;
                     document.getElementById('fng-text').textContent = fng.value_text;
-
                     const date = new Date(fng.timestamp * 1000);
                     document.getElementById('fng-time').textContent = date.toLocaleDateString('de-DE');
-
                     return fng.value;
                 }
-
             } catch (error) {
-                console.error('Fehler beim Laden von Fear & Greed:', error);
+                console.error('Fehler Fear & Greed:', error);
                 document.getElementById('fng-value').textContent = 'Fehler';
-                document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
+                document.getElementById('fng-text').textContent = 'N/A';
                 throw error;
             }
         }
 
-        // Berechne Ampel-Farbe
+        // Aktualisiere Ampel
         function updateAmpel(vixValue, fngValue) {
-            // Reset alle Lichter
+            // Reset
             document.getElementById('ampel-rot').className = 'ampel-light ampel-off';
             document.getElementById('ampel-gelb').className = 'ampel-light ampel-off';
             document.getElementById('ampel-gruen').className = 'ampel-light ampel-off';
@@ -354,26 +363,20 @@
             let text = '';
             let reason = '';
 
-            // Ampel-Logik:
-            // GRÜN: VIX niedrig UND Fear & Greed hoch
-            // ROT: VIX hoch ODER Fear & Greed niedrig
-            // GELB: Alles andere
-
             if (vixValue <= thresholds.vixGreen && fngValue >= thresholds.fngGreen) {
                 color = 'gruen';
-                text = 'Kaufsignal';
+                text = '🟢 Kaufsignal';
                 reason = 'VIX niedrig & Fear & Greed hoch';
             } else if (vixValue >= thresholds.vixYellow || fngValue <= thresholds.fngYellow) {
                 color = 'rot';
-                text = 'Verkaufssignal';
+                text = '🔴 Verkaufssignal';
                 reason = vixValue >= thresholds.vixYellow ? 'VIX zu hoch' : 'Fear & Greed zu niedrig';
             } else {
                 color = 'gelb';
-                text = 'Vorsicht';
+                text = '🟡 Vorsicht';
                 reason = 'Neutrale Marktstimmung';
             }
 
-            // Setze das richtige Licht
             document.getElementById(`ampel-${color}`).className = `ampel-light ampel-${color} pulse`;
             document.getElementById('ampel-text').textContent = text;
             document.getElementById('ampel-reason').textContent = reason;
@@ -382,28 +385,27 @@
         // Lade alle Daten
         async function loadAllData() {
             try {
-                // Marktstatus aktualisieren
+                // Marktstatus
                 const status = getMarktStatus();
-                document.getElementById('marktstatus').innerHTML = `
-                    <div class="text-4xl mb-2">${status.emoji}</div>
-                    <p class="text-white text-lg">${status.text}</p>
-                    <p class="text-gray-300 text-sm">${status.nextOpen || ''}</p>
-                `;
+                document.getElementById('marktstatus-emoji').textContent = status.emoji;
+                document.getElementById('marktstatus-text').textContent = status.text;
+                document.getElementById('marktstatus-text').className = status.cssClass;
+                document.getElementById('marktstatus-next').textContent = status.nextOpen;
 
-                // Lade Markt-Daten und Fear & Greed parallel
+                // Lade parallel
                 const [marketData, fngValue] = await Promise.all([
                     loadMarketData(),
                     loadFearGreed()
                 ]);
 
-                // Aktualisiere Ampel
+                // Ampel aktualisieren
                 if (marketData.vix && marketData.vix.price && fngValue) {
                     updateAmpel(marketData.vix.price, fngValue);
                 }
 
             } catch (error) {
-                console.error('Fehler beim Laden der Daten:', error);
-                document.getElementById('ampel-text').textContent = 'Fehler';
+                console.error('Fehler:', error);
+                document.getElementById('ampel-text').textContent = '❌ Fehler';
                 document.getElementById('ampel-reason').textContent = 'Daten konnten nicht geladen werden';
             }
         }
@@ -420,30 +422,24 @@
 
     <!-- PWA Manifest (inline) -->
     <script>
-        // Dynamisches Manifest für PWA
         const manifest = {
             "name": "Börsenampel",
             "short_name": "Börsenampel",
             "description": "Echtzeit-Marktcheck mit Ampel-System",
             "start_url": "/",
             "display": "standalone",
-            "background_color": "#1f2937",
+            "background_color": "#1e293b",
             "theme_color": "#3b82f6",
-            "icons": [
-                {
-                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik01MCAzMFMzMCA1MFYzMFMzMCAzMFY1MEg1MFYzMFY1MEg1MFYzMFMzMCA1MFY1MEg1MFYzMFY1MFYzMFMzMCA1MEg1MFYzMEg1MFYzMFY1MFM1MCAzMFY1MEg1MFYzMFY1MCIgZmlsbD0iIzM3NDExNSIvPgo8L3N2Zz4K",
-                    "sizes": "100x100",
-                    "type": "image/svg+xml",
-                    "purpose": "any maskable"
-                }
-            ]
+            "icons": [{
+                "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTUwIDMwUzMwIDUwVjMwUzMwIDMwVjUwSDUwVjMwVjUwSDUwVjMwUzMwIDUwSDUwVjMwSDUwVjUwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwVjUwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwIiBmaWxsPSIjMzc0MTExIi8+PC9zdmc+",
+                "sizes": "100x100",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }]
         };
-
-        // Manifest als JSON-LD einbetten
-        const manifestString = JSON.stringify(manifest);
         const link = document.createElement('link');
         link.rel = 'manifest';
-        link.href = URL.createObjectURL(new Blob([manifestString], { type: 'application/json' }));
+        link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
         document.head.appendChild(link);
     </script>
 </body>
