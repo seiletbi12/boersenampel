@@ -192,7 +192,7 @@
 
             <!-- Fear & Greed -->
             <div class="card">
-                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">CNN</span></h3>
+                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">feargreedmeter.com</span></h3>
                 <div class="price" id="fng-value">-</div>
                 <div style="font-size: 1.2rem; color: #e2e8f0;" id="fng-text">-</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
@@ -268,7 +268,16 @@
     <script>
         // Worker URL
         const WORKER_URL = 'https://boersenampelproxyy.tobseil87.workers.dev/';
-        const FNG_URL = 'https://api.alternative.me/fng/';
+        
+        // Fear & Greed URLs (von feargreedmeter.com)
+        const FNG_URLS = [
+            'https://feargreedmeter.com/api/',
+            'https://api.alternative.me/fng/',
+            'https://api.allorigins.win/raw?url=https://feargreedmeter.com/api/',
+            'https://api.allorigins.win/raw?url=https://api.alternative.me/fng/',
+            'https://corsproxy.io/?https://feargreedmeter.com/api/',
+            'https://corsproxy.io/?https://api.alternative.me/fng/'
+        ];
 
         // Standard-Schwellenwerte
         let thresholds = {
@@ -401,52 +410,58 @@
             }
         }
 
-        // Lade Fear & Greed
+        // Lade Fear & Greed von feargreedmeter.com
         async function loadFearGreed() {
-            try {
-                // Alternative URL falls feargreedmeter.com blockiert
-                const response = await fetch(FNG_URL, { cache: 'no-store' });
-                if (!response.ok) {
-                    // Fallback: Versuche es mit CORS-Proxys
-                    const proxies = [
-                        'https://api.allorigins.win/raw?url=https://api.alternative.me/fng/',
-                        'https://corsproxy.io/?https://api.alternative.me/fng/'
-                    ];
-                    for (const proxy of proxies) {
-                        try {
-                            const proxyResponse = await fetch(proxy, { cache: 'no-store' });
-                            if (proxyResponse.ok) {
-                                const data = await proxyResponse.json();
-                                if (data.fng) {
-                                    const fng = data.fng;
-                                    document.getElementById('fng-value').textContent = fng.value;
-                                    document.getElementById('fng-text').textContent = fng.value_text;
-                                    const date = new Date(fng.timestamp * 1000);
-                                    document.getElementById('fng-time').textContent = date.toLocaleDateString('de-DE');
-                                    return fng.value;
-                                }
-                            }
-                        } catch (e) {}
+            for (const url of FNG_URLS) {
+                try {
+                    const response = await fetch(url, { cache: 'no-store' });
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Parsen der Daten - feargreedmeter.com gibt direkt die Werte zurück
+                        let fngValue, fngText, fngTime;
+                        
+                        if (data.fng) {
+                            // api.alternative.me Format
+                            fngValue = data.fng.value;
+                            fngText = data.fng.value_text;
+                            fngTime = new Date(data.fng.timestamp * 1000);
+                        } else if (data.now) {
+                            // feargreedmeter.com Format
+                            fngValue = data.now;
+                            fngText = data.now >= 70 ? 'Extreme Greed' : 
+                                      data.now >= 50 ? 'Greed' : 
+                                      data.now >= 40 ? 'Neutral' : 
+                                      data.now >= 20 ? 'Fear' : 'Extreme Fear';
+                            fngTime = new Date(data.now_time * 1000);
+                        } else if (data.value) {
+                            // Anderes Format
+                            fngValue = data.value;
+                            fngText = data.value_text || (data.value >= 70 ? 'Extreme Greed' : 
+                                         data.value >= 50 ? 'Greed' : 
+                                         data.value >= 40 ? 'Neutral' : 
+                                         data.value >= 20 ? 'Fear' : 'Extreme Fear');
+                            fngTime = new Date();
+                        }
+                        
+                        if (fngValue) {
+                            document.getElementById('fng-value').textContent = fngValue;
+                            document.getElementById('fng-text').textContent = fngText;
+                            document.getElementById('fng-time').textContent = fngTime.toLocaleDateString('de-DE') + ' ' + fngTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                            return fngValue;
+                        }
                     }
-                    throw new Error('Alle Proxys fehlgeschlagen');
+                } catch (error) {
+                    console.log(`FNG URL fehlgeschlagen: ${url}`, error);
+                    continue;
                 }
-                const data = await response.json();
-
-                if (data.fng) {
-                    const fng = data.fng;
-                    document.getElementById('fng-value').textContent = fng.value;
-                    document.getElementById('fng-text').textContent = fng.value_text;
-                    const date = new Date(fng.timestamp * 1000);
-                    document.getElementById('fng-time').textContent = date.toLocaleDateString('de-DE');
-                    return fng.value;
-                }
-            } catch (error) {
-                console.error('Fehler Fear & Greed:', error);
-                document.getElementById('fng-value').textContent = 'Fehler';
-                document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
-                // Fallback-Wert für Ampel-Berechnung
-                return 50; // Neutral
             }
+            
+            // Falls alles fehlschlägt
+            console.error('Alle Fear & Greed URLs fehlgeschlagen');
+            document.getElementById('fng-value').textContent = 'Fehler';
+            document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
+            return 50; // Neutraler Fallback-Wert
         }
 
         // Aktualisiere Ampel
