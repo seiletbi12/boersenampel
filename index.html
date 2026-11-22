@@ -28,7 +28,7 @@
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold">📈 Markt-Morgencheck</h1>
-                <p class="text-sm text-slate-400" id="marketStatus">Laedt Marktstatus...</p>
+                <p class="text-sm text-slate-400" id="marketStatus">Lädt Marktstatus...</p>
             </div>
             <div class="flex items-center gap-3">
                 <button onclick="loadAllData()" class="rounded-lg bg-sky-600 hover:bg-sky-700 px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2">
@@ -41,7 +41,7 @@
                 </div>
                 <div class="flex items-center gap-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm">
                     <span class="text-slate-400">Status:</span>
-                    <span id="connectionStatus">🌐 Laedt...</span>
+                    <span id="connectionStatus">🌐 Lädt...</span>
                 </div>
             </div>
         </div>
@@ -60,7 +60,7 @@
                 <div class="flex-1">
                     <div class="mb-2 text-lg font-bold" id="ampelTitle">🟢 GRÜN – Normal handelbar.</div>
                     <ul class="space-y-1.5 text-sm text-slate-300" id="ampelReasons">
-                        <li>Laedt Ampel-Bewertung...</li>
+                        <li>Lädt Ampel-Bewertung...</li>
                     </ul>
                 </div>
             </div>
@@ -76,7 +76,7 @@
                     <span class="text-3xl font-bold" id="spxValue">-</span>
                     <span class="text-lg font-semibold" id="spxChange">-</span>
                 </div>
-                <p class="mt-1 text-xs text-slate-400" id="spxNote">Laedt Daten...</p>
+                <p class="mt-1 text-xs text-slate-400" id="spxNote">Lädt Daten...</p>
                 <div class="mt-3 h-28"><canvas id="spxChart"></canvas></div>
                 <p class="mt-1 text-[10px] text-slate-500">
                     <span class="text-yellow-400">– –</span> MA50 <span id="ma50Value">7692.97</span> ·
@@ -515,15 +515,15 @@
             const reasons = [];
             let color = "green";
             
-            // VIX Check (VXX ETF)
+            // VIX Check
             if (data.vix.value && data.vix.value >= thresholds.vixStop) {
                 color = "red";
-                reasons.push({ icon: "🔴", text: `VIX (${data.vix.value.toFixed(2).replace('.', ',')}) liegt über deinem Stopp-Limit (${thresholds.vixStop}) – hohes Volatilitätsregime, Finger weg von neuen Positionen.` });
+                reasons.push({ icon: "🔴", text: `VIX ${data.vix.value.toFixed(2).replace('.', ',')} liegt über deinem Stopp-Limit (${thresholds.vixStop}) – hohes Volatilitätsregime, Finger weg von neuen Positionen.` });
             } else if (data.vix.value && data.vix.value >= thresholds.vixCaution) {
                 if (color !== "red") color = "yellow";
-                reasons.push({ icon: "🟡", text: `VIX (${data.vix.value.toFixed(2).replace('.', ',')}) über deinem Vorsichtswert (${thresholds.vixCaution}) – erhöhte Nervosität, nur kleine Positionen.` });
+                reasons.push({ icon: "🟡", text: `VIX ${data.vix.value.toFixed(2).replace('.', ',')} über deinem Vorsichtswert (${thresholds.vixCaution}) – erhöhte Nervosität, nur kleine Positionen.` });
             } else {
-                reasons.push({ icon: "🟢", text: `VIX (${data.vix.value ? data.vix.value.toFixed(2).replace('.', ',') : '?'} unter deinem Vorsichtswert (${thresholds.vixCaution}) – ruhiges Volatilitätsregime.` });
+                reasons.push({ icon: "🟢", text: `VIX ${data.vix.value ? data.vix.value.toFixed(2).replace('.', ',') : '?'} unter deinem Vorsichtswert (${thresholds.vixCaution}) – ruhiges Volatilitätsregime.` });
             }
             
             // Fear & Greed Check
@@ -552,7 +552,7 @@
                 }
             }
             
-            // Trend Check (SPY ETF)
+            // Trend Check (S&P 500)
             const sp = data.spx.value || data.spx.lastClose || 7353.73;
             const ma50 = data.spx.ma50;
             const ma200 = data.spx.ma200;
