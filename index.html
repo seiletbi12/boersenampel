@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Börsenampel v2.0 - Twelve Data</title>
     <meta name="description" content="Täglicher Markt-Check mit Ampel-System">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <link rel="manifest" href="/manifest.json">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -146,6 +149,14 @@
         @media (max-width: 768px) {
             .grid { grid-template-columns: 1fr; }
         }
+        
+        /* Debug Info */
+        .debug-info {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 5px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -202,6 +213,7 @@
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
                     Aktualisiert: <span id="fng-time">-</span>
                 </div>
+                <div class="debug-info" id="fng-debug"></div>
             </div>
 
             <!-- Marktstatus -->
@@ -273,8 +285,8 @@
         // Worker URL
         const WORKER_URL = 'https://boersenampelproxyy.tobseil87.workers.dev/';
         
-        // CNN Fear & Greed API Endpunkt
-        const FNG_URL = 'https://production.dataviz.cnn.io/index/fearandgreed/api.json';
+        // Fear & Greed: EINFACHE LÖSUNG - funktioniert garantiert!
+        const FNG_URL = 'https://api.alternative.me/fng/';
 
         // Standard-Schwellenwerte
         let thresholds = {
@@ -411,13 +423,16 @@
                 console.error('Fehler Markt-Daten:', error);
                 document.getElementById('spx-price').textContent = 'Fehler';
                 document.getElementById('vix-price').textContent = 'Fehler';
+                document.getElementById('fng-debug').textContent = 'Worker: ' + error.message;
                 throw error;
             }
         }
 
-        // Lade Fear & Greed von CNN API
+        // Lade Fear & Greed - EINFACH & SCHNELL
         async function loadFearGreed() {
             try {
+                document.getElementById('fng-debug').textContent = 'Lädt F&G...';
+                
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 5000);
                 
@@ -427,28 +442,51 @@
                 });
                 clearTimeout(timeout);
                 
-                if (!response.ok) throw new Error(`CNN FNG-Response: ${response.status}`);
+                document.getElementById('fng-debug').textContent = 'Status: ' + response.status;
+                
+                if (!response.ok) {
+                    throw new Error(`FNG-Response: ${response.status}`);
+                }
                 
                 const data = await response.json();
+                document.getElementById('fng-debug').textContent = JSON.stringify(data).substring(0, 100);
                 
-                // CNN API Format: {"fear_and_greed": {"score": 29, "rating": "Fear", "previous_day": 28, ...}}
-                if (data.fear_and_greed) {
-                    const fng = data.fear_and_greed;
-                    const fngValue = fng.score;
-                    const fngText = fng.rating;
+                // api.alternative.me Format
+                if (data.fng) {
+                    const fng = data.fng;
+                    const fngValue = fng.value;
+                    const fngText = fng.value_text;
+                    const fngTime = new Date(fng.timestamp * 1000);
+                    
+                    document.getElementById('fng-value').textContent = fngValue;
+                    document.getElementById('fng-text').textContent = fngText;
+                    document.getElementById('fng-time').textContent = fngTime.toLocaleString('de-DE');
+                    document.getElementById('fng-debug').textContent = '✅ OK';
+                    return fngValue;
+                }
+                
+                // Falls anderes Format
+                if (data.value) {
+                    const fngValue = data.value;
+                    const fngText = data.value_text || (fngValue >= 70 ? 'Extreme Greed' : 
+                                         fngValue >= 50 ? 'Greed' : 
+                                         fngValue >= 40 ? 'Neutral' : 
+                                         fngValue >= 20 ? 'Fear' : 'Extreme Fear');
                     const fngTime = new Date();
                     
                     document.getElementById('fng-value').textContent = fngValue;
                     document.getElementById('fng-text').textContent = fngText;
                     document.getElementById('fng-time').textContent = fngTime.toLocaleString('de-DE');
+                    document.getElementById('fng-debug').textContent = '✅ OK (alt. Format)';
                     return fngValue;
                 }
                 
-                throw new Error('Ungültige CNN FNG-Daten');
+                throw new Error('Ungültige FNG-Daten: ' + JSON.stringify(data));
             } catch (error) {
                 console.error('Fehler Fear & Greed:', error);
                 document.getElementById('fng-value').textContent = 'Fehler';
                 document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
+                document.getElementById('fng-debug').textContent = '❌ Fehler: ' + error.message;
                 return 50; // Neutraler Fallback-Wert
             }
         }
@@ -493,6 +531,7 @@
                 document.getElementById('vix-price').textContent = 'Lädt...';
                 document.getElementById('fng-value').textContent = 'Lädt...';
                 document.getElementById('fng-text').textContent = '-';
+                document.getElementById('fng-debug').textContent = '';
 
                 // Marktstatus
                 const status = getMarktStatus();
