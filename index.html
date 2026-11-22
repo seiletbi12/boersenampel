@@ -73,15 +73,64 @@
         .status-open { color: #22c55e; }
         .status-closed { color: #ef4444; }
         .status-weekend { color: #f59e0b; }
-        .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .settings-input { 
-            background: #475569; 
-            border: 1px solid #64748b; 
-            color: #e2e8f0; 
-            padding: 8px 12px; 
-            border-radius: 6px;
-            width: 100%;
+        
+        /* Slider Styling */
+        .slider-container {
+            margin: 15px 0;
         }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        .slider-value {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #475569;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 4px;
+        }
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 4px;
+            border: none;
+        }
+        
         .version-badge {
             background: #3b82f6;
             color: white;
@@ -92,7 +141,6 @@
         }
         @media (max-width: 768px) {
             .grid { grid-template-columns: 1fr; }
-            .settings-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -166,28 +214,43 @@
             <button onclick="loadAllData()" class="btn">🔄 Daten aktualisieren</button>
         </div>
 
-        <!-- Schwellenwerte -->
+        <!-- Schwellenwerte als Slider -->
         <div class="card">
             <h2>⚙️ Ampel-Schwellenwerte anpassen</h2>
-            <div class="settings-grid">
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">VIX Grün (niedrig)</label>
-                    <input type="number" id="vix-green" value="15" class="settings-input">
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>VIX Grün (niedrig)</span>
+                    <span id="vix-green-value" class="slider-value">15</span>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">VIX Gelb (mittel)</label>
-                    <input type="number" id="vix-yellow" value="20" class="settings-input">
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Fear & Greed Grün (hoch)</label>
-                    <input type="number" id="fng-green" value="70" class="settings-input">
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Fear & Greed Gelb (neutral)</label>
-                    <input type="number" id="fng-yellow" value="40" class="settings-input">
-                </div>
+                <input type="range" id="vix-green" min="5" max="40" value="15" step="1" oninput="updateSliderValue('vix-green', this.value)">
             </div>
-            <div style="text-align: center; margin-top: 15px;">
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>VIX Gelb (mittel)</span>
+                    <span id="vix-yellow-value" class="slider-value">20</span>
+                </div>
+                <input type="range" id="vix-yellow" min="10" max="50" value="20" step="1" oninput="updateSliderValue('vix-yellow', this.value)">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Fear & Greed Grün (hoch)</span>
+                    <span id="fng-green-value" class="slider-value">70</span>
+                </div>
+                <input type="range" id="fng-green" min="50" max="100" value="70" step="1" oninput="updateSliderValue('fng-green', this.value)">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Fear & Greed Gelb (neutral)</span>
+                    <span id="fng-yellow-value" class="slider-value">40</span>
+                </div>
+                <input type="range" id="fng-yellow" min="20" max="80" value="40" step="1" oninput="updateSliderValue('fng-yellow', this.value)">
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
                 <button onclick="saveThresholds()" class="btn" style="background: #22c55e;">💾 Schwellenwerte speichern</button>
             </div>
         </div>
@@ -215,6 +278,11 @@
             fngYellow: 40
         };
 
+        // Slider-Werte aktualisieren
+        function updateSliderValue(id, value) {
+            document.getElementById(`${id}-value`).textContent = value;
+        }
+
         // Lade gespeicherte Schwellenwerte
         function loadThresholds() {
             const saved = localStorage.getItem('boersenampelThresholds');
@@ -224,16 +292,20 @@
                 document.getElementById('vix-yellow').value = thresholds.vixYellow;
                 document.getElementById('fng-green').value = thresholds.fngGreen;
                 document.getElementById('fng-yellow').value = thresholds.fngYellow;
+                document.getElementById('vix-green-value').textContent = thresholds.vixGreen;
+                document.getElementById('vix-yellow-value').textContent = thresholds.vixYellow;
+                document.getElementById('fng-green-value').textContent = thresholds.fngGreen;
+                document.getElementById('fng-yellow-value').textContent = thresholds.fngYellow;
             }
         }
 
         // Speichere Schwellenwerte
         function saveThresholds() {
             thresholds = {
-                vixGreen: parseFloat(document.getElementById('vix-green').value) || 15,
-                vixYellow: parseFloat(document.getElementById('vix-yellow').value) || 20,
-                fngGreen: parseFloat(document.getElementById('fng-green').value) || 70,
-                fngYellow: parseFloat(document.getElementById('fng-yellow').value) || 40
+                vixGreen: parseInt(document.getElementById('vix-green').value) || 15,
+                vixYellow: parseInt(document.getElementById('vix-yellow').value) || 20,
+                fngGreen: parseInt(document.getElementById('fng-green').value) || 70,
+                fngYellow: parseInt(document.getElementById('fng-yellow').value) || 40
             };
             localStorage.setItem('boersenampelThresholds', JSON.stringify(thresholds));
             alert('Schwellenwerte gespeichert!');
@@ -332,8 +404,32 @@
         // Lade Fear & Greed
         async function loadFearGreed() {
             try {
+                // Alternative URL falls feargreedmeter.com blockiert
                 const response = await fetch(FNG_URL, { cache: 'no-store' });
-                if (!response.ok) throw new Error(`FNG-Response: ${response.status}`);
+                if (!response.ok) {
+                    // Fallback: Versuche es mit CORS-Proxys
+                    const proxies = [
+                        'https://api.allorigins.win/raw?url=https://api.alternative.me/fng/',
+                        'https://corsproxy.io/?https://api.alternative.me/fng/'
+                    ];
+                    for (const proxy of proxies) {
+                        try {
+                            const proxyResponse = await fetch(proxy, { cache: 'no-store' });
+                            if (proxyResponse.ok) {
+                                const data = await proxyResponse.json();
+                                if (data.fng) {
+                                    const fng = data.fng;
+                                    document.getElementById('fng-value').textContent = fng.value;
+                                    document.getElementById('fng-text').textContent = fng.value_text;
+                                    const date = new Date(fng.timestamp * 1000);
+                                    document.getElementById('fng-time').textContent = date.toLocaleDateString('de-DE');
+                                    return fng.value;
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    throw new Error('Alle Proxys fehlgeschlagen');
+                }
                 const data = await response.json();
 
                 if (data.fng) {
@@ -347,8 +443,9 @@
             } catch (error) {
                 console.error('Fehler Fear & Greed:', error);
                 document.getElementById('fng-value').textContent = 'Fehler';
-                document.getElementById('fng-text').textContent = 'N/A';
-                throw error;
+                document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
+                // Fallback-Wert für Ampel-Berechnung
+                return 50; // Neutral
             }
         }
 
@@ -431,7 +528,7 @@
             "background_color": "#1e293b",
             "theme_color": "#3b82f6",
             "icons": [{
-                "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTUwIDMwUzMwIDUwVjMwUzMwIDMwVjUwSDUwVjMwVjUwSDUwVjMwUzMwIDUwSDUwVjMwSDUwVjUwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwVjUwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwIiBmaWxsPSIjMzc0MTExIi8+PC9zdmc+",
+                "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTUwIDMwUzMwIDUwVjMwUzMwIDMwVjUwSDUwVjMwVjUwSDUwVjMwUzMwIDUwSDUwVjMwSDUwVjUwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwIiBmaWxsPSIjMzc0MTExIi8+PC9zdmc+",
                 "sizes": "100x100",
                 "type": "image/svg+xml",
                 "purpose": "any maskable"
