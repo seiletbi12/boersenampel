@@ -217,8 +217,8 @@
     </div>
 
     <script>
-        // Cloudflare Worker URL für Yahoo Finance (User: tobseil87)
-        const PROXY_URL = 'https://yahoo-finance-proxy.tobseil87.workers.dev/?url=';
+        // Cloudflare Worker URL für Yahoo Finance CSV (User: tobseil87)
+        const PROXY_URL = 'https://yahoo-finance-proxy.tobseil87.workers.dev/?symbol=';
         
         const DEFAULT_THRESHOLDS = { vixCaution: 20, vixStop: 25, fgFear: 26, fgGreed: 76 };
         const data = {
@@ -335,12 +335,11 @@
         }
 
         async function loadSPX() {
-            // Echter S&P 500 Index von Yahoo Finance über Cloudflare Worker
+            // Echter S&P 500 Index von Yahoo Finance über Cloudflare Worker (CSV-Endpunkt)
             const symbol = '^GSPC';
             
             try {
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-                const proxyUrl = PROXY_URL + encodeURIComponent(yahooUrl);
+                const proxyUrl = PROXY_URL + symbol;
                 const response = await fetch(proxyUrl, { cache: 'no-store' });
                 
                 if (!response.ok) {
@@ -370,12 +369,11 @@
         }
 
         async function loadVIX() {
-            // Echter VIX Index von Yahoo Finance über Cloudflare Worker
+            // Echter VIX Index von Yahoo Finance über Cloudflare Worker (CSV-Endpunkt)
             const symbol = '^VIX';
             
             try {
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-                const proxyUrl = PROXY_URL + encodeURIComponent(yahooUrl);
+                const proxyUrl = PROXY_URL + symbol;
                 const response = await fetch(proxyUrl, { cache: 'no-store' });
                 
                 if (!response.ok) {
