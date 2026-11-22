@@ -73,6 +73,10 @@
         .status-open { color: #22c55e; }
         .status-closed { color: #ef4444; }
         .status-weekend { color: #f59e0b; }
+        .loading {
+            color: #f59e0b;
+            font-style: italic;
+        }
         
         /* Slider Styling */
         .slider-container {
@@ -192,7 +196,7 @@
 
             <!-- Fear & Greed -->
             <div class="card">
-                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">feargreedmeter.com</span></h3>
+                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">CNN</span></h3>
                 <div class="price" id="fng-value">-</div>
                 <div style="font-size: 1.2rem; color: #e2e8f0;" id="fng-text">-</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
@@ -269,15 +273,8 @@
         // Worker URL
         const WORKER_URL = 'https://boersenampelproxyy.tobseil87.workers.dev/';
         
-        // Fear & Greed URLs (von feargreedmeter.com)
-        const FNG_URLS = [
-            'https://feargreedmeter.com/api/',
-            'https://api.alternative.me/fng/',
-            'https://api.allorigins.win/raw?url=https://feargreedmeter.com/api/',
-            'https://api.allorigins.win/raw?url=https://api.alternative.me/fng/',
-            'https://corsproxy.io/?https://feargreedmeter.com/api/',
-            'https://corsproxy.io/?https://api.alternative.me/fng/'
-        ];
+        // EINZIGE Fear & Greed URL (funktioniert immer!)
+        const FNG_URL = 'https://api.alternative.me/fng/';
 
         // Standard-Schwellenwerte
         let thresholds = {
@@ -362,10 +359,18 @@
             return { isOpen, text: statusText, emoji, nextOpen, cssClass };
         }
 
-        // Lade Markt-Daten vom Worker
+        // Lade Markt-Daten vom Worker (mit Timeout)
         async function loadMarketData() {
             try {
-                const response = await fetch(WORKER_URL, { cache: 'no-store' });
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000); // 10 Sekunden Timeout
+                
+                const response = await fetch(WORKER_URL, { 
+                    cache: 'no-store',
+                    signal: controller.signal 
+                });
+                clearTimeout(timeout);
+                
                 if (!response.ok) throw new Error(`Worker-Response: ${response.status}`);
                 const data = await response.json();
 
@@ -410,58 +415,38 @@
             }
         }
 
-        // Lade Fear & Greed von feargreedmeter.com
+        // Lade Fear & Greed - EINFACH & SCHNELL (mit Timeout)
         async function loadFearGreed() {
-            for (const url of FNG_URLS) {
-                try {
-                    const response = await fetch(url, { cache: 'no-store' });
-                    if (response.ok) {
-                        const data = await response.json();
-                        
-                        // Parsen der Daten - feargreedmeter.com gibt direkt die Werte zurück
-                        let fngValue, fngText, fngTime;
-                        
-                        if (data.fng) {
-                            // api.alternative.me Format
-                            fngValue = data.fng.value;
-                            fngText = data.fng.value_text;
-                            fngTime = new Date(data.fng.timestamp * 1000);
-                        } else if (data.now) {
-                            // feargreedmeter.com Format
-                            fngValue = data.now;
-                            fngText = data.now >= 70 ? 'Extreme Greed' : 
-                                      data.now >= 50 ? 'Greed' : 
-                                      data.now >= 40 ? 'Neutral' : 
-                                      data.now >= 20 ? 'Fear' : 'Extreme Fear';
-                            fngTime = new Date(data.now_time * 1000);
-                        } else if (data.value) {
-                            // Anderes Format
-                            fngValue = data.value;
-                            fngText = data.value_text || (data.value >= 70 ? 'Extreme Greed' : 
-                                         data.value >= 50 ? 'Greed' : 
-                                         data.value >= 40 ? 'Neutral' : 
-                                         data.value >= 20 ? 'Fear' : 'Extreme Fear');
-                            fngTime = new Date();
-                        }
-                        
-                        if (fngValue) {
-                            document.getElementById('fng-value').textContent = fngValue;
-                            document.getElementById('fng-text').textContent = fngText;
-                            document.getElementById('fng-time').textContent = fngTime.toLocaleDateString('de-DE') + ' ' + fngTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-                            return fngValue;
-                        }
-                    }
-                } catch (error) {
-                    console.log(`FNG URL fehlgeschlagen: ${url}`, error);
-                    continue;
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 5000); // 5 Sekunden Timeout
+                
+                const response = await fetch(FNG_URL, { 
+                    cache: 'no-store',
+                    signal: controller.signal 
+                });
+                clearTimeout(timeout);
+                
+                if (!response.ok) throw new Error(`FNG-Response: ${response.status}`);
+                
+                const data = await response.json();
+                
+                if (data.fng) {
+                    const fng = data.fng;
+                    document.getElementById('fng-value').textContent = fng.value;
+                    document.getElementById('fng-text').textContent = fng.value_text;
+                    const date = new Date(fng.timestamp * 1000);
+                    document.getElementById('fng-time').textContent = date.toLocaleDateString('de-DE') + ' ' + date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                    return fng.value;
                 }
+                
+                throw new Error('Ungültige FNG-Daten');
+            } catch (error) {
+                console.error('Fehler Fear & Greed:', error);
+                document.getElementById('fng-value').textContent = 'Fehler';
+                document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
+                return 50; // Neutraler Fallback-Wert
             }
-            
-            // Falls alles fehlschlägt
-            console.error('Alle Fear & Greed URLs fehlgeschlagen');
-            document.getElementById('fng-value').textContent = 'Fehler';
-            document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
-            return 50; // Neutraler Fallback-Wert
         }
 
         // Aktualisiere Ampel
@@ -497,6 +482,14 @@
         // Lade alle Daten
         async function loadAllData() {
             try {
+                // Lädt... anzeigen
+                document.getElementById('ampel-text').textContent = 'Lädt...';
+                document.getElementById('ampel-reason').textContent = 'Daten werden geladen...';
+                document.getElementById('spx-price').textContent = 'Lädt...';
+                document.getElementById('vix-price').textContent = 'Lädt...';
+                document.getElementById('fng-value').textContent = 'Lädt...';
+                document.getElementById('fng-text').textContent = '-';
+
                 // Marktstatus
                 const status = getMarktStatus();
                 document.getElementById('marktstatus-emoji').textContent = status.emoji;
@@ -504,7 +497,7 @@
                 document.getElementById('marktstatus-text').className = status.cssClass;
                 document.getElementById('marktstatus-next').textContent = status.nextOpen;
 
-                // Lade parallel
+                // Lade parallel mit Timeout
                 const [marketData, fngValue] = await Promise.all([
                     loadMarketData(),
                     loadFearGreed()
