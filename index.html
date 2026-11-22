@@ -331,19 +331,17 @@
             return { value: 24, zone: "Extreme Fear", prev: 24, date: new Date() };
         }
 
+        // Cloudflare Worker für Cboe CDN
+        const PROXY_URL = 'https://yahoo-finance-proxy.tobseil87.workers.dev/?endpoint=';
+
         async function loadSPX() {
-            // Echter S&P 500 Index von Cboe CDN (CORS-fähig!)
+            // Echter S&P 500 Index von Cboe CDN über Cloudflare Worker
             try {
-                const response = await fetch('https://cdn.cboe.com/api/global/delayed_quotes/quotes/_SPX.json', {
-                    cache: 'no-store',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Referer': 'https://www.cboe.com/'
-                    }
-                });
+                const proxyUrl = PROXY_URL + '_SPX';
+                const response = await fetch(proxyUrl, { cache: 'no-store' });
                 
                 if (!response.ok) {
-                    throw new Error(`Cboe API Fehler: ${response.status}`);
+                    throw new Error(`Proxy Fehler: ${response.status}`);
                 }
                 
                 const json = await response.json();
@@ -369,18 +367,13 @@
         }
 
         async function loadVIX() {
-            // Echter VIX Index von Cboe CDN (CORS-fähig!)
+            // Echter VIX Index von Cboe CDN über Cloudflare Worker
             try {
-                const response = await fetch('https://cdn.cboe.com/api/global/delayed_quotes/quotes/_VIX.json', {
-                    cache: 'no-store',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Referer': 'https://www.cboe.com/'
-                    }
-                });
+                const proxyUrl = PROXY_URL + '_VIX';
+                const response = await fetch(proxyUrl, { cache: 'no-store' });
                 
                 if (!response.ok) {
-                    throw new Error(`Cboe API Fehler: ${response.status}`);
+                    throw new Error(`Proxy Fehler: ${response.status}`);
                 }
                 
                 const json = await response.json();
