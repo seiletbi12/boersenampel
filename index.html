@@ -196,7 +196,7 @@
 
             <!-- Fear & Greed -->
             <div class="card">
-                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">feargreedmeter.com</span></h3>
+                <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">CNN</span></h3>
                 <div class="price" id="fng-value">-</div>
                 <div style="font-size: 1.2rem; color: #e2e8f0;" id="fng-text">-</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
@@ -273,8 +273,8 @@
         // Worker URL
         const WORKER_URL = 'https://boersenampelproxyy.tobseil87.workers.dev/';
         
-        // Fear & Greed: Parsen von der HTML-Seite (funktioniert ohne API-Key!)
-        const FNG_URL = 'https://feargreedmeter.com/';
+        // CNN Fear & Greed API Endpunkt
+        const FNG_URL = 'https://production.dataviz.cnn.io/index/fearandgreed/api.json';
 
         // Standard-Schwellenwerte
         let thresholds = {
@@ -415,84 +415,36 @@
             }
         }
 
-        // Lade Fear & Greed durch Parsen der HTML-Seite
+        // Lade Fear & Greed von CNN API
         async function loadFearGreed() {
             try {
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 5000);
                 
-                // Lade die HTML-Seite
                 const response = await fetch(FNG_URL, { 
                     cache: 'no-store',
                     signal: controller.signal 
                 });
                 clearTimeout(timeout);
                 
-                if (!response.ok) throw new Error(`FNG-Response: ${response.status}`);
+                if (!response.ok) throw new Error(`CNN FNG-Response: ${response.status}`);
                 
-                const html = await response.text();
+                const data = await response.json();
                 
-                // Parsen der Fear & Greed Daten aus dem HTML
-                // Die Seite hat ein Element wie: <div class="fg-value">29</div>
-                // und <div class="fg-text">Fear</div>
-                // und <div class="fg-time">Now: 11/22/2026 21:45</div>
-                
-                let fngValue = null;
-                let fngText = null;
-                let fngTime = null;
-                
-                // Versuche verschiedene Patterns
-                const valueMatch = html.match(/<div[^>]*class=["']fg-value["'][^>]*>([\d]+)<\/div>/i) ||
-                                  html.match(/<span[^>]*class=["']fg-value["'][^>]*>([\d]+)<\/span>/i) ||
-                                  html.match(/Fear & Greed Index: ([\d]+)/i) ||
-                                  html.match(/fg-value["']?\s*:"([\d]+)"/i);
-                
-                const textMatch = html.match(/<div[^>]*class=["']fg-text["'][^>]*>([^<]+)<\/div>/i) ||
-                                  html.match(/<span[^>]*class=["']fg-text["'][^>]*>([^<]+)<\/span>/i) ||
-                                  html.match(/value_text["']?\s*:"([^"]+)"/i);
-                
-                const timeMatch = html.match(/<div[^>]*class=["']fg-time["'][^>]*>([^<]+)<\/div>/i) ||
-                                  html.match(/<span[^>]*class=["']fg-time["'][^>]*>([^<]+)<\/span>/i) ||
-                                  html.match(/now_time["']?\s*:"([^"]+)"/i);
-                
-                if (valueMatch) {
-                    fngValue = parseInt(valueMatch[1]);
-                }
-                
-                if (textMatch) {
-                    fngText = textMatch[1].trim();
-                }
-                
-                if (timeMatch) {
-                    fngTime = timeMatch[1].trim();
-                }
-                
-                // Falls nicht gefunden, versuche JSON in Script-Tags
-                if (!fngValue) {
-                    const jsonMatch = html.match(/<script[^>]*>([\s\S]*?"now"\s*:\s*(\d+)[\s\S]*?)<\/script>/i);
-                    if (jsonMatch) {
-                        fngValue = parseInt(jsonMatch[2]);
-                    }
-                }
-                
-                if (!fngText && fngValue) {
-                    // Standard-Texte basierend auf Wert
-                    if (fngValue >= 70) fngText = 'Extreme Greed';
-                    else if (fngValue >= 50) fngText = 'Greed';
-                    else if (fngValue >= 40) fngText = 'Neutral';
-                    else if (fngValue >= 20) fngText = 'Fear';
-                    else fngText = 'Extreme Fear';
-                }
-                
-                if (fngValue) {
+                // CNN API Format: {"fear_and_greed": {"score": 29, "rating": "Fear", "previous_day": 28, ...}}
+                if (data.fear_and_greed) {
+                    const fng = data.fear_and_greed;
+                    const fngValue = fng.score;
+                    const fngText = fng.rating;
+                    const fngTime = new Date();
+                    
                     document.getElementById('fng-value').textContent = fngValue;
-                    document.getElementById('fng-text').textContent = fngText || 'N/A';
-                    document.getElementById('fng-time').textContent = fngTime || new Date().toLocaleString('de-DE');
+                    document.getElementById('fng-text').textContent = fngText;
+                    document.getElementById('fng-time').textContent = fngTime.toLocaleString('de-DE');
                     return fngValue;
                 }
                 
-                throw new Error('FNG-Wert nicht im HTML gefunden');
-                
+                throw new Error('Ungültige CNN FNG-Daten');
             } catch (error) {
                 console.error('Fehler Fear & Greed:', error);
                 document.getElementById('fng-value').textContent = 'Fehler';
