@@ -3,10 +3,7 @@ const CACHE_NAME = 'boersenampel-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com',
-  'https://fonts.gstatic.com'
+  '/manifest.json'
 ];
 
 // Install: Cache alle Assets
@@ -24,15 +21,11 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache-Hit: gib die gecachte Antwort zurück
         if (response) {
           return response;
         }
-        
-        // Cache-Miss: hole aus dem Netzwerk und cache es
         return fetch(event.request)
           .then((response) => {
-            // Klone die Antwort für den Cache
             const responseClone = response.clone();
             caches.open(CACHE_NAME)
               .then((cache) => {

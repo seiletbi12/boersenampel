@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Börsenampel v2.0 - Twelve Data</title>
-    <meta name="description" content="Täglicher Markt-Check mit Ampel-System">
+    <title>Börsenampel v2.1 - Twelve Data + CNN</title>
+    <meta name="description" content="Täglicher Markt-Check mit Ampel-System und Live-Daten von Twelve Data und CNN">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -76,9 +76,18 @@
         .status-open { color: #22c55e; }
         .status-closed { color: #ef4444; }
         .status-weekend { color: #f59e0b; }
-        .loading {
-            color: #f59e0b;
-            font-style: italic;
+        .source-link {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 8px;
+            display: block;
+        }
+        .source-link a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .source-link a:hover {
+            text-decoration: underline;
         }
         
         /* Slider Styling */
@@ -149,21 +158,13 @@
         @media (max-width: 768px) {
             .grid { grid-template-columns: 1fr; }
         }
-        
-        /* Debug Info */
-        .debug-info {
-            font-size: 0.75rem;
-            color: #64748b;
-            margin-top: 5px;
-            font-family: monospace;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1>📈 Börsenampel <span class="version-badge">v2.0 - Twelve Data</span></h1>
+            <h1>📈 Börsenampel <span class="version-badge">v2.1 - Twelve Data + CNN</span></h1>
             <p class="text-sm" id="lastUpdate">Letzte Aktualisierung: -</p>
         </header>
 
@@ -190,8 +191,8 @@
                 <h3>S&P 500 <span style="font-size: 0.7rem; background: #3b82f6; padding: 2px 6px; border-radius: 4px;">SPY ETF</span></h3>
                 <div class="price" id="spx-price">-</div>
                 <div class="price-change" id="spx-change">-</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
-                    Vorher: <span id="spx-prev-close">-</span>
+                <div class="source-link">
+                    Quelle: <a href="https://twelvedata.com/" target="_blank">Twelve Data</a>
                 </div>
             </div>
 
@@ -200,8 +201,8 @@
                 <h3>VIX <span style="font-size: 0.7rem; background: #a855f7; padding: 2px 6px; border-radius: 4px;">VIXY ETF</span></h3>
                 <div class="price" id="vix-price">-</div>
                 <div class="price-change" id="vix-change">-</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
-                    Vorher: <span id="vix-prev-close">-</span>
+                <div class="source-link">
+                    Quelle: <a href="https://twelvedata.com/" target="_blank">Twelve Data</a>
                 </div>
             </div>
 
@@ -210,10 +211,9 @@
                 <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">CNN</span></h3>
                 <div class="price" id="fng-value">-</div>
                 <div style="font-size: 1.2rem; color: #e2e8f0;" id="fng-text">-</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">
-                    Aktualisiert: <span id="fng-time">-</span>
+                <div class="source-link">
+                    Quelle: <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">CNN Fear & Greed</a>
                 </div>
-                <div class="debug-info" id="fng-debug"></div>
             </div>
 
             <!-- Marktstatus -->
@@ -284,9 +284,6 @@
     <script>
         // Worker URL
         const WORKER_URL = 'https://boersenampelproxyy.tobseil87.workers.dev/';
-        
-        // Fear & Greed: EINFACHE LÖSUNG - funktioniert garantiert!
-        const FNG_URL = 'https://api.alternative.me/fng/';
 
         // Standard-Schwellenwerte
         let thresholds = {
@@ -371,19 +368,28 @@
             return { isOpen, text: statusText, emoji, nextOpen, cssClass };
         }
 
-        // Lade Markt-Daten vom Worker (mit Timeout)
-        async function loadMarketData() {
+        // Lade alle Daten vom Worker
+        async function loadAllData() {
             try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 10000);
-                
-                const response = await fetch(WORKER_URL, { 
-                    cache: 'no-store',
-                    signal: controller.signal 
-                });
-                clearTimeout(timeout);
-                
+                // Lädt... anzeigen
+                document.getElementById('ampel-text').textContent = 'Lädt...';
+                document.getElementById('ampel-reason').textContent = 'Daten werden geladen...';
+                document.getElementById('spx-price').textContent = 'Lädt...';
+                document.getElementById('vix-price').textContent = 'Lädt...';
+                document.getElementById('fng-value').textContent = 'Lädt...';
+                document.getElementById('fng-text').textContent = '-';
+
+                // Marktstatus
+                const status = getMarktStatus();
+                document.getElementById('marktstatus-emoji').textContent = status.emoji;
+                document.getElementById('marktstatus-text').textContent = status.text;
+                document.getElementById('marktstatus-text').className = status.cssClass;
+                document.getElementById('marktstatus-next').textContent = status.nextOpen;
+
+                // Lade alles vom Worker
+                const response = await fetch(WORKER_URL, { cache: 'no-store' });
                 if (!response.ok) throw new Error(`Worker-Response: ${response.status}`);
+                
                 const data = await response.json();
 
                 // SPY Daten
@@ -412,82 +418,28 @@
                     document.getElementById('vix-change').className = `price-change ${changeColor}`;
                 }
 
+                // Fear & Greed Daten
+                if (data.fearGreed) {
+                    const fg = data.fearGreed;
+                    document.getElementById('fng-value').textContent = fg.score || '-';
+                    document.getElementById('fng-text').textContent = fg.rating || '-';
+                }
+
                 // Aktualisierungszeit
                 if (data.fetchedAt) {
                     const date = new Date(data.fetchedAt);
                     document.getElementById('lastUpdate').textContent = `Letzte Aktualisierung: ${date.toLocaleString('de-DE')}`;
                 }
 
-                return data;
-            } catch (error) {
-                console.error('Fehler Markt-Daten:', error);
-                document.getElementById('spx-price').textContent = 'Fehler';
-                document.getElementById('vix-price').textContent = 'Fehler';
-                document.getElementById('fng-debug').textContent = 'Worker: ' + error.message;
-                throw error;
-            }
-        }
+                // Ampel aktualisieren
+                if (data.vix && data.vix.price && data.fearGreed && data.fearGreed.score) {
+                    updateAmpel(data.vix.price, data.fearGreed.score);
+                }
 
-        // Lade Fear & Greed - EINFACH & SCHNELL
-        async function loadFearGreed() {
-            try {
-                document.getElementById('fng-debug').textContent = 'Lädt F&G...';
-                
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 5000);
-                
-                const response = await fetch(FNG_URL, { 
-                    cache: 'no-store',
-                    signal: controller.signal 
-                });
-                clearTimeout(timeout);
-                
-                document.getElementById('fng-debug').textContent = 'Status: ' + response.status;
-                
-                if (!response.ok) {
-                    throw new Error(`FNG-Response: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                document.getElementById('fng-debug').textContent = JSON.stringify(data).substring(0, 100);
-                
-                // api.alternative.me Format
-                if (data.fng) {
-                    const fng = data.fng;
-                    const fngValue = fng.value;
-                    const fngText = fng.value_text;
-                    const fngTime = new Date(fng.timestamp * 1000);
-                    
-                    document.getElementById('fng-value').textContent = fngValue;
-                    document.getElementById('fng-text').textContent = fngText;
-                    document.getElementById('fng-time').textContent = fngTime.toLocaleString('de-DE');
-                    document.getElementById('fng-debug').textContent = '✅ OK';
-                    return fngValue;
-                }
-                
-                // Falls anderes Format
-                if (data.value) {
-                    const fngValue = data.value;
-                    const fngText = data.value_text || (fngValue >= 70 ? 'Extreme Greed' : 
-                                         fngValue >= 50 ? 'Greed' : 
-                                         fngValue >= 40 ? 'Neutral' : 
-                                         fngValue >= 20 ? 'Fear' : 'Extreme Fear');
-                    const fngTime = new Date();
-                    
-                    document.getElementById('fng-value').textContent = fngValue;
-                    document.getElementById('fng-text').textContent = fngText;
-                    document.getElementById('fng-time').textContent = fngTime.toLocaleString('de-DE');
-                    document.getElementById('fng-debug').textContent = '✅ OK (alt. Format)';
-                    return fngValue;
-                }
-                
-                throw new Error('Ungültige FNG-Daten: ' + JSON.stringify(data));
             } catch (error) {
-                console.error('Fehler Fear & Greed:', error);
-                document.getElementById('fng-value').textContent = 'Fehler';
-                document.getElementById('fng-text').textContent = 'Daten nicht verfügbar';
-                document.getElementById('fng-debug').textContent = '❌ Fehler: ' + error.message;
-                return 50; // Neutraler Fallback-Wert
+                console.error('Fehler:', error);
+                document.getElementById('ampel-text').textContent = '❌ Fehler';
+                document.getElementById('ampel-reason').textContent = 'Daten konnten nicht geladen werden';
             }
         }
 
@@ -521,43 +473,6 @@
             document.getElementById('ampel-reason').textContent = reason;
         }
 
-        // Lade alle Daten
-        async function loadAllData() {
-            try {
-                // Lädt... anzeigen
-                document.getElementById('ampel-text').textContent = 'Lädt...';
-                document.getElementById('ampel-reason').textContent = 'Daten werden geladen...';
-                document.getElementById('spx-price').textContent = 'Lädt...';
-                document.getElementById('vix-price').textContent = 'Lädt...';
-                document.getElementById('fng-value').textContent = 'Lädt...';
-                document.getElementById('fng-text').textContent = '-';
-                document.getElementById('fng-debug').textContent = '';
-
-                // Marktstatus
-                const status = getMarktStatus();
-                document.getElementById('marktstatus-emoji').textContent = status.emoji;
-                document.getElementById('marktstatus-text').textContent = status.text;
-                document.getElementById('marktstatus-text').className = status.cssClass;
-                document.getElementById('marktstatus-next').textContent = status.nextOpen;
-
-                // Lade parallel mit Timeout
-                const [marketData, fngValue] = await Promise.all([
-                    loadMarketData(),
-                    loadFearGreed()
-                ]);
-
-                // Ampel aktualisieren
-                if (marketData.vix && marketData.vix.price && fngValue) {
-                    updateAmpel(marketData.vix.price, fngValue);
-                }
-
-            } catch (error) {
-                console.error('Fehler:', error);
-                document.getElementById('ampel-text').textContent = '❌ Fehler';
-                document.getElementById('ampel-reason').textContent = 'Daten konnten nicht geladen werden';
-            }
-        }
-
         // Initial laden
         document.addEventListener('DOMContentLoaded', () => {
             loadThresholds();
@@ -573,7 +488,7 @@
         const manifest = {
             "name": "Börsenampel",
             "short_name": "Börsenampel",
-            "description": "Echtzeit-Marktcheck mit Ampel-System",
+            "description": "Echtzeit-Marktcheck mit Ampel-System und Live-Daten von Twelve Data und CNN",
             "start_url": "/",
             "display": "standalone",
             "background_color": "#1e293b",
