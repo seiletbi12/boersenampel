@@ -583,14 +583,30 @@
             document.getElementById('ampel-reason').textContent = reason;
         }
 
-        // Initial laden
-        document.addEventListener('DOMContentLoaded', () => {
+        // Prüfe, ob automatische Aktualisierung erlaubt ist (8-22 Uhr Deutschland)
+        function shouldAutoUpdate() {
+            const now = new Date();
+            const hour = now.getHours();
+            // 8-22 Uhr in Deutschland (MEZ/MESZ)
+            return hour >= 8 && hour < 22;
+        }
+
+        // Automatische Aktualisierung alle 60 Minuten, aber nur zwischen 8-22 Uhr
+        function startAutoUpdate() {
+            // Sofort laden beim Start
             loadThresholds();
             loadAllData();
-        });
+            
+            // Alle 60 Minuten prüfen
+            setInterval(() => {
+                if (shouldAutoUpdate()) {
+                    loadAllData();
+                }
+            }, 60 * 60 * 1000);
+        }
 
-        // Automatische Aktualisierung alle 5 Minuten
-        setInterval(loadAllData, 5 * 60 * 1000);
+        // Initial laden
+        document.addEventListener('DOMContentLoaded', startAutoUpdate);
     </script>
 
     <!-- PWA Manifest (inline) -->
