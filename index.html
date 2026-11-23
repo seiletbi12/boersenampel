@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Börsenampel v2.1 - Twelve Data + CNN</title>
+    <title>Börsenampel v2.2 - Twelve Data + CNN</title>
     <meta name="description" content="Täglicher Markt-Check mit Ampel-System und Live-Daten von Twelve Data und CNN">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <link rel="manifest" href="/manifest.json">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -58,7 +57,7 @@
         .pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
         .price { font-size: 2rem; font-weight: bold; }
-        .price-change { font-size: 1rem; }
+        .price-change { font-size: 1rem; margin-top: 5px; }
         .change-positive { color: #22c55e; }
         .change-negative { color: #ef4444; }
         .btn {
@@ -88,6 +87,14 @@
         }
         .source-link a:hover {
             text-decoration: underline;
+        }
+        .debug-info {
+            font-size: 0.7rem;
+            color: #f59e0b;
+            margin-top: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
         
         /* Slider Styling */
@@ -155,6 +162,14 @@
             font-size: 0.8rem;
             margin-left: 10px;
         }
+        .loading {
+            color: #f59e0b;
+            font-style: italic;
+        }
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
         @media (max-width: 768px) {
             .grid { grid-template-columns: 1fr; }
         }
@@ -164,7 +179,7 @@
     <div class="container">
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1>📈 Börsenampel <span class="version-badge">v2.1 - Twelve Data + CNN</span></h1>
+            <h1>📊 Börsenampel <span class="version-badge">v2.2 - Twelve Data + CNN</span></h1>
             <p class="text-sm" id="lastUpdate">Letzte Aktualisierung: -</p>
         </header>
 
@@ -186,7 +201,7 @@
 
         <!-- Daten Grid -->
         <div class="grid">
-            <!-- S&P 500 -->
+            <!-- S&P 500 (SPY ETF) -->
             <div class="card">
                 <h3>S&P 500 <span style="font-size: 0.7rem; background: #3b82f6; padding: 2px 6px; border-radius: 4px;">SPY ETF</span></h3>
                 <div class="price" id="spx-price">-</div>
@@ -194,9 +209,10 @@
                 <div class="source-link">
                     Quelle: <a href="https://twelvedata.com/" target="_blank">Twelve Data</a>
                 </div>
+                <div class="debug-info" id="spx-debug"></div>
             </div>
 
-            <!-- VIX -->
+            <!-- VIX (VIXY ETF) -->
             <div class="card">
                 <h3>VIX <span style="font-size: 0.7rem; background: #a855f7; padding: 2px 6px; border-radius: 4px;">VIXY ETF</span></h3>
                 <div class="price" id="vix-price">-</div>
@@ -204,9 +220,10 @@
                 <div class="source-link">
                     Quelle: <a href="https://twelvedata.com/" target="_blank">Twelve Data</a>
                 </div>
+                <div class="debug-info" id="vix-debug"></div>
             </div>
 
-            <!-- Fear & Greed -->
+            <!-- Fear & Greed Index -->
             <div class="card">
                 <h3>Fear & Greed Index <span style="font-size: 0.7rem; background: #f97316; padding: 2px 6px; border-radius: 4px;">CNN</span></h3>
                 <div class="price" id="fng-value">-</div>
@@ -214,6 +231,7 @@
                 <div class="source-link">
                     Quelle: <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">CNN Fear & Greed</a>
                 </div>
+                <div class="debug-info" id="fng-debug"></div>
             </div>
 
             <!-- Marktstatus -->
@@ -225,9 +243,17 @@
             </div>
         </div>
 
+        <!-- Debug Info -->
+        <div class="card" id="debug-card" style="display: none;">
+            <h2>🐛 Debug-Informationen</h2>
+            <div class="debug-info" id="debug-output"></div>
+            <button onclick="toggleDebug()" class="btn" style="margin-top: 10px;">🔍 Debug ausblenden</button>
+        </div>
+
         <!-- Aktualisierungs-Button -->
         <div style="text-align: center; margin: 20px 0;">
             <button onclick="loadAllData()" class="btn">🔄 Daten aktualisieren</button>
+            <button onclick="toggleDebug()" class="btn" style="margin-left: 10px; background: #f59e0b;">🐛 Debug anzeigen</button>
         </div>
 
         <!-- Schwellenwerte als Slider -->
@@ -293,6 +319,16 @@
             fngYellow: 40
         };
 
+        // Debug anzeigen/verstecken
+        function toggleDebug() {
+            const debugCard = document.getElementById('debug-card');
+            if (debugCard.style.display === 'none') {
+                debugCard.style.display = 'block';
+            } else {
+                debugCard.style.display = 'none';
+            }
+        }
+
         // Slider-Werte aktualisieren
         function updateSliderValue(id, value) {
             document.getElementById(`${id}-value`).textContent = value;
@@ -346,11 +382,11 @@
                     (currentHour < marketOpenEnd || (currentHour === marketOpenEnd && currentMinute <= 0))) {
                     isOpen = true;
                     statusText = 'Geöffnet';
-                    emoji = '🟢';
+                    emoji = '🏢';
                     cssClass = 'status-open';
                 } else {
                     statusText = 'Geschlossen';
-                    emoji = '🔴';
+                    emoji = '🌃';
                     cssClass = 'status-closed';
                 }
             } else {
@@ -368,6 +404,21 @@
             return { isOpen, text: statusText, emoji, nextOpen, cssClass };
         }
 
+        // Format Number Helper
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '-';
+            return num.toFixed(2);
+        }
+
+        // Format Change Helper
+        function formatChange(change, changePct) {
+            if (change === null || change === undefined || changePct === null || changePct === undefined) return '-';
+            const sign = change >= 0 ? '+' : '';
+            const signPct = changePct >= 0 ? '+' : '';
+            const color = change >= 0 ? 'change-positive' : 'change-negative';
+            return `<span class="${color}">${sign}${formatNumber(change)} (${signPct}${formatNumber(changePct)}%)</span>`;
+        }
+
         // Lade alle Daten vom Worker
         async function loadAllData() {
             try {
@@ -375,9 +426,15 @@
                 document.getElementById('ampel-text').textContent = 'Lädt...';
                 document.getElementById('ampel-reason').textContent = 'Daten werden geladen...';
                 document.getElementById('spx-price').textContent = 'Lädt...';
+                document.getElementById('spx-change').textContent = '';
                 document.getElementById('vix-price').textContent = 'Lädt...';
+                document.getElementById('vix-change').textContent = '';
                 document.getElementById('fng-value').textContent = 'Lädt...';
-                document.getElementById('fng-text').textContent = '-';
+                document.getElementById('fng-text').textContent = '';
+                document.getElementById('spx-debug').textContent = '';
+                document.getElementById('vix-debug').textContent = '';
+                document.getElementById('fng-debug').textContent = '';
+                document.getElementById('debug-output').textContent = `Worker-URL: ${WORKER_URL}\n\n`;
 
                 // Marktstatus
                 const status = getMarktStatus();
@@ -387,59 +444,112 @@
                 document.getElementById('marktstatus-next').textContent = status.nextOpen;
 
                 // Lade alles vom Worker
-                const response = await fetch(WORKER_URL, { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Worker-Response: ${response.status}`);
+                document.getElementById('debug-output').textContent += 'Lade Daten vom Worker...\n';
+                
+                const response = await fetch(WORKER_URL + '?cachebuster=' + Date.now(), { 
+                    cache: 'no-store',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                document.getElementById('debug-output').textContent += `Response Status: ${response.status}\n`;
+                
+                if (!response.ok) {
+                    throw new Error(`Worker-Response: ${response.status} - ${response.statusText}`);
+                }
                 
                 const data = await response.json();
+                document.getElementById('debug-output').textContent += `Worker-Daten: ${JSON.stringify(data, null, 2)}\n`;
 
-                // SPY Daten
-                if (data.sp500) {
-                    const spx = data.sp500;
-                    document.getElementById('spx-price').textContent = spx.price?.toFixed(2) || '-';
-                    document.getElementById('spx-prev-close').textContent = spx.prevClose?.toFixed(2) || '-';
+                // Debug: Zeige rohe Daten
+                console.log('Worker Daten:', data);
 
-                    const change = spx.change || 0;
-                    const changePct = spx.changePercent || 0;
-                    const changeColor = change >= 0 ? 'change-positive' : 'change-negative';
-                    document.getElementById('spx-change').innerHTML = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
-                    document.getElementById('spx-change').className = `price-change ${changeColor}`;
+                // SPY/S&P 500 Daten
+                let spxPrice = null, spxChange = null, spxChangePct = null;
+                if (data.sp500 && data.sp500.price !== undefined) {
+                    spxPrice = data.sp500.price;
+                    spxChange = data.sp500.change || 0;
+                    spxChangePct = data.sp500.changePercent || 0;
+                    document.getElementById('spx-price').textContent = formatNumber(spxPrice);
+                    document.getElementById('spx-change').innerHTML = formatChange(spxChange, spxChangePct);
+                    document.getElementById('spx-debug').textContent = 'OK';
+                    document.getElementById('debug-output').textContent += 'S&P 500: OK\n';
+                } else {
+                    document.getElementById('spx-price').textContent = 'Fehler';
+                    document.getElementById('spx-debug').textContent = 'Daten nicht verfügbar';
+                    document.getElementById('debug-output').textContent += 'S&P 500: NICHT GEFUNDEN\n';
                 }
 
-                // VIXY Daten
-                if (data.vix) {
-                    const vix = data.vix;
-                    document.getElementById('vix-price').textContent = vix.price?.toFixed(2) || '-';
-                    document.getElementById('vix-prev-close').textContent = vix.prevClose?.toFixed(2) || '-';
-
-                    const change = vix.change || 0;
-                    const changePct = vix.changePercent || 0;
-                    const changeColor = change >= 0 ? 'change-positive' : 'change-negative';
-                    document.getElementById('vix-change').innerHTML = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
-                    document.getElementById('vix-change').className = `price-change ${changeColor}`;
+                // VIXY/VIX Daten
+                let vixPrice = null, vixChange = null, vixChangePct = null;
+                if (data.vix && data.vix.price !== undefined) {
+                    vixPrice = data.vix.price;
+                    vixChange = data.vix.change || 0;
+                    vixChangePct = data.vix.changePercent || 0;
+                    document.getElementById('vix-price').textContent = formatNumber(vixPrice);
+                    document.getElementById('vix-change').innerHTML = formatChange(vixChange, vixChangePct);
+                    document.getElementById('vix-debug').textContent = 'OK';
+                    document.getElementById('debug-output').textContent += 'VIX: OK\n';
+                } else {
+                    document.getElementById('vix-price').textContent = 'Fehler';
+                    document.getElementById('vix-debug').textContent = 'Daten nicht verfügbar';
+                    document.getElementById('debug-output').textContent += 'VIX: NICHT GEFUNDEN\n';
                 }
 
                 // Fear & Greed Daten
-                if (data.fearGreed) {
-                    const fg = data.fearGreed;
-                    document.getElementById('fng-value').textContent = fg.score || '-';
-                    document.getElementById('fng-text').textContent = fg.rating || '-';
+                let fngScore = null, fngRating = null;
+                if (data.fearGreed && data.fearGreed.score !== undefined) {
+                    fngScore = data.fearGreed.score;
+                    fngRating = data.fearGreed.rating || data.fearGreed.valueText || '-';
+                    document.getElementById('fng-value').textContent = Math.round(fngScore);
+                    document.getElementById('fng-text').textContent = fngRating;
+                    document.getElementById('fng-debug').textContent = 'OK';
+                    document.getElementById('debug-output').textContent += `Fear & Greed: OK (${fngScore}, ${fngRating})\n`;
+                } else if (data.fearGreed && data.fearGreed.value !== undefined) {
+                    // Fallback für alternative Struktur
+                    fngScore = data.fearGreed.value;
+                    fngRating = data.fearGreed.rating || data.fearGreed.text || '-';
+                    document.getElementById('fng-value').textContent = Math.round(fngScore);
+                    document.getElementById('fng-text').textContent = fngRating;
+                    document.getElementById('fng-debug').textContent = 'OK (Fallback)';
+                    document.getElementById('debug-output').textContent += `Fear & Greed: OK (Fallback: ${fngScore})\n`;
+                } else {
+                    document.getElementById('fng-value').textContent = 'Fehler';
+                    document.getElementById('fng-text').textContent = '';
+                    document.getElementById('fng-debug').textContent = 'Daten nicht verfügbar';
+                    document.getElementById('debug-output').textContent += 'Fear & Greed: NICHT GEFUNDEN\n';
                 }
 
                 // Aktualisierungszeit
                 if (data.fetchedAt) {
                     const date = new Date(data.fetchedAt);
                     document.getElementById('lastUpdate').textContent = `Letzte Aktualisierung: ${date.toLocaleString('de-DE')}`;
+                } else {
+                    document.getElementById('lastUpdate').textContent = `Letzte Aktualisierung: ${new Date().toLocaleString('de-DE')}`;
                 }
 
                 // Ampel aktualisieren
-                if (data.vix && data.vix.price && data.fearGreed && data.fearGreed.score) {
-                    updateAmpel(data.vix.price, data.fearGreed.score);
+                const vixValue = vixPrice !== null ? vixPrice : 0;
+                const fngValue = fngScore !== null ? fngScore : 50;
+                
+                document.getElementById('debug-output').textContent += `Ampel-Berechnung: VIX=${vixValue}, F&G=${fngValue}\n`;
+                document.getElementById('debug-output').textContent += `Schwellenwerte: VIX-Grün=${thresholds.vixGreen}, VIX-Gelb=${thresholds.vixYellow}, F&G-Grün=${thresholds.fngGreen}, F&G-Gelb=${thresholds.fngYellow}\n`;
+                
+                if (vixValue && fngValue) {
+                    updateAmpel(vixValue, fngValue);
+                } else {
+                    document.getElementById('ampel-text').textContent = '❌ Keine Daten';
+                    document.getElementById('ampel-reason').textContent = 'VIX oder Fear & Greed nicht verfügbar';
                 }
 
             } catch (error) {
                 console.error('Fehler:', error);
                 document.getElementById('ampel-text').textContent = '❌ Fehler';
-                document.getElementById('ampel-reason').textContent = 'Daten konnten nicht geladen werden';
+                document.getElementById('ampel-reason').textContent = 'Fehler: ' + error.message;
+                document.getElementById('spx-price').textContent = 'Fehler';
+                document.getElementById('vix-price').textContent = 'Fehler';
+                document.getElementById('fng-value').textContent = 'Fehler';
+                document.getElementById('debug-output').textContent = 'FEHLER: ' + error.message + '\n' + (error.stack || '');
             }
         }
 
@@ -494,7 +604,7 @@
             "background_color": "#1e293b",
             "theme_color": "#3b82f6",
             "icons": [{
-                "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTUwIDMwUzMwIDUwVjMwUzMwIDMwVjUwSDUwVjMwVjUwSDUwVjMwUzMwIDUwSDUwVjMwSDUwVjUwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwIiBmaWxsPSIjMzc0MTExIi8+PC9zdmc+",
+                "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTUwIDMwUzMwIDUwVjMwUzMwIDMwVjUwSDUwVjMwVjUwSDUwVjMwUzUwIDMwVjUwSDUwVjMwVjUwUzMwIDUwSDUwVjMwIiBmaWxsPSIjMzc0MTExIi8+PC9zdmc+",
                 "sizes": "100x100",
                 "type": "image/svg+xml",
                 "purpose": "any maskable"
